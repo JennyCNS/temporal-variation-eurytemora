@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH -D .
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=all
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=47:00:00
+#SBATCH --job-name=trim
+#SBATCH --output=seqkit.out
+#SBATCH --error=seqkit.err
+
+
+seqkit stats /gxfs_work1/geomar/smomw573/seasonal_adaptation/raw_data/trimmed/*.gz

@@ -1,0 +1,1859 @@
+# create local path to R library
+
+```bash
+module load R/4.1.1
+module load gcc/10.2.0
+cd ~
+mkdir R_libs
+export R_LIBS=$HOME/R_libs:$R_LIBS
+```
+
+# check quality of trimmed reads
+```
+#!/bin/bash
+#SBATCH -D /gxfs_work1/geomar/smomw573/seasonal_adaptation/raw_data/trimmed/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=47:00:00
+#SBATCH --job-name=trim
+#SBATCH --output=seqkit.out
+#SBATCH --error=seqkit.err
+
+
+seqkit stats /gxfs_work1/geomar/smomw573/seasonal_adaptation/raw_data/trimmed/*.gz
+```
+# call SNPs using PoolSNP
+
+```bash
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/software/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=17
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100G
+#SBATCH --qos=long
+#SBATCH --time=150:00:00
+#SBATCH --job-name=PoolSNP-trial5
+#SBATCH --output=poolsnptrial5.out
+#SBATCH --error=poolsnptrial5.err
+
+bash /gxfs_home/geomar/smomw573/software/PoolSNP/PoolSNP.sh \
+mpileup=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/all.mpileup \
+output=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/final-maf0.01-mincov50-mincount10-allsites0-allsamples_b.vcf  \
+reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+names=EA_2007_T1,EA_2007_T2,EA_2009_T1,EA_2009_T2,EA_2009_T3,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2011_T3,EA_2015_T1,EA_2015_T2,EA_2015_T3,EA_2015_T4,EA_2022_T1,EA_2022_T2,EA_2022_T3,EA_2022_T4 \
+min-cov=50 \
+max-cov=0.95 \
+min-count=10 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=17 \
+badsites=1 \
+allsites=0
+
+#trial 1 wrong sample name input
+#trial 2 did not have scripts directory in the Poolsnp directory
+#trial 3 ran together with nohup so missed header
+#trial 4 fixed all of the above but ran with all sites = 1
+#trial 5 = trial 4 but no sites = 0
+#trial 6 = trial 5 but different working direcotry (softare) and all sites = 1
+#trial 7 = min-count = 10
+
+```
+#I tried this with multiple parameters but the final one were these
+min-cov=50 \
+max-cov=0.95 \
+min-count=10 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=17 \
+badsites=1 \
+allsites=0
+
+# Now we checked the quality of the vcf file using all samples 
+
+# explore data statistics with plink
+
+```bash script 
+conda install -c bioconda plink
+
+# Output directory where processed files will be stored
+output=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP/stats
+
+plink --file final-maf0.01-mincov50-mincount10-allsites0-allsamples_b.vcf --allow-extra-chr --missing --hardy --freq --out /$output/final-allsamples
+
+```
+# plot ind missing data in R
+
+```R
+###Poolseq data 
+###plink output data statistics
+##July 2023
+
+
+library(ggplot2)
+library(tidyverse)
+library(data.table)
+
+
+###################
+#all samples
+#MAF 0.01
+#MIN COV 50
+#MIN COUNT 10
+###################
+
+#MAF
+frq_data <- fread("final-allsamples.frq")
+
+#in ascending order
+ggplot(frq_data, aes(x = MAF)) +
+  geom_density(color="dodgerblue", fill="lightblue")+
+  theme_bw()
+ggsave("allsamplesMAF.pdf", width = 7, height = 7, units =c("cm"), dpi =3000)
+
+
+#simple plot
+h = hist(frq_data$MAF)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+### lmiss
+lmiss <- fread("final-allsamples.lmiss")
+a <- ggplot(lmiss, aes(F_MISS)) + geom_density(colour = "dodgerblue1", fill = "lightblue", alpha = 0.3)
+a + theme_light()+
+  labs(x="frequency LMiss",
+       y="density") +
+  theme_classic() +
+  theme(axis.text.x=element_text(hjust = 1)) +
+  theme(text = element_text(size = 12)) 
+
+
+h = hist(lmiss$F_MISS)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+#individual missing
+
+imiss <- fread("final-allsamples.imiss")
+str(imiss)
+a <- ggplot(imiss, aes(F_MISS)) + geom_density(fill = "dodgerblue1", colour = "black", alpha = 0.3)
+a + theme_light()
+
+ggplot(imiss, aes(x=FID, y=F_MISS)) + geom_bar(stat="identity", fill = "dodgerblue1", colour = "black", alpha = 0.3) +
+  labs(x="Sample",
+       y="Frequency missing data") +
+  theme_classic() +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1)) +
+  theme(text = element_text(size = 8)) 
+#density
+
+ggplot(imiss, aes(F_MISS)) + geom_density( fill = "dodgerblue1", colour = "black", alpha = 0.3) +
+  labs(x="missing data (individual)",
+       y="Density") +
+  theme_classic() +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1)) +
+  theme(text = element_text(size = 8)) 
+
+ggsave("freq_missing_data_allvariants_maf0.01-mincount20-mincov50.pdf", width = 14, height = 6, units =c("cm"), dpi =3000)
+
+
+#Individual missing
+
+h = hist(lmiss$F_MISS)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+###################
+#excluding bad samples
+#MAF 0.01
+#MIN COV 50
+#MIN COUNT 10
+###################
+
+#MAF
+frq_data <- fread("10mincount_filtered.frq")
+
+#in ascending order
+ggplot(frq_data, aes(x = MAF)) +
+  geom_density(color="dodgerblue", fill="lightblue")+
+  theme_bw()
+ggsave("allsamplesMAF.pdf", width = 7, height = 7, units =c("cm"), dpi =3000)
+
+
+#simple plot
+h = hist(frq_data$MAF)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+### lmiss
+lmiss <- fread("10mincount_filtered.lmiss")
+a <- ggplot(lmiss, aes(F_MISS)) + geom_density(colour = "dodgerblue1", fill = "lightblue", alpha = 0.3)
+a + theme_light()+
+  labs(x="frequency LMiss",
+       y="density") +
+  theme_classic() +
+  theme(axis.text.x=element_text(hjust = 1)) +
+  theme(text = element_text(size = 12)) 
+
+
+h = hist(lmiss$F_MISS)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+#individual missing
+
+imiss <- fread("10mincount_filtered.imiss")
+str(imiss)
+a <- ggplot(imiss, aes(F_MISS)) + geom_density(fill = "dodgerblue1", colour = "black", alpha = 0.3)
+a + theme_light()
+
+ggplot(imiss, aes(x=FID, y=F_MISS)) + geom_bar(stat="identity", fill = "dodgerblue1", colour = "black", alpha = 0.3) +
+  labs(x="Sample",
+       y="Frequency missing data") +
+  theme_classic() +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1)) +
+  theme(text = element_text(size = 8)) 
+#density
+
+ggplot(imiss, aes(F_MISS)) + geom_density( fill = "dodgerblue1", colour = "black", alpha = 0.3) +
+  labs(x="missing data (individual)",
+       y="Density") +
+  theme_classic() +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1)) +
+  theme(text = element_text(size = 8)) 
+
+ggsave("freq_missing_data_allvariants_maf0.01-mincount20-mincov50.pdf", width = 14, height = 6, units =c("cm"), dpi =3000)
+
+
+#Individual missing
+
+h = hist(lmiss$F_MISS)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+
+###################
+#excluding bad samples
+#MAF 0.01
+#MIN COV 50
+#MIN COUNT 5
+###################
+
+#MAF
+frq_data <- fread("10mincount_filtered.frq")
+
+#in ascending order
+ggplot(frq_data, aes(x = MAF)) +
+  geom_density(color="dodgerblue", fill="lightblue")+
+  theme_bw()
+ggsave("allsamplesMAF.pdf", width = 7, height = 7, units =c("cm"), dpi =3000)
+
+
+#simple plot
+h = hist(frq_data$MAF)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+### lmiss
+lmiss <- fread("5mincount_filtered.lmiss")
+a <- ggplot(lmiss, aes(F_MISS)) + geom_density(colour = "dodgerblue1", fill = "lightblue", alpha = 0.3)
+a + theme_light()+
+  labs(x="frequency LMiss",
+       y="density") +
+  theme_classic() +
+  theme(axis.text.x=element_text(hjust = 1)) +
+  theme(text = element_text(size = 12)) 
+
+
+h = hist(lmiss$F_MISS)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+#individual missing
+
+imiss <- fread("5mincount_filtered.imiss")
+str(imiss)
+a <- ggplot(imiss, aes(F_MISS)) + geom_density(fill = "dodgerblue1", colour = "black", alpha = 0.3)
+a + theme_light()
+
+ggplot(imiss, aes(x=FID, y=F_MISS)) + geom_bar(stat="identity", fill = "dodgerblue1", colour = "black", alpha = 0.3) +
+  labs(x="Sample",
+       y="Frequency missing data") +
+  theme_classic() +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1)) +
+  theme(text = element_text(size = 8)) 
+#density
+
+ggplot(imiss, aes(F_MISS)) + geom_density( fill = "dodgerblue1", colour = "black", alpha = 0.3) +
+  labs(x="missing data (individual)",
+       y="Density") +
+  theme_classic() +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1)) +
+  theme(text = element_text(size = 8)) 
+
+ggsave("freq_missing_data_allvariants_maf0.01-mincount20-mincov50.pdf", width = 14, height = 6, units =c("cm"), dpi =3000)
+
+
+#Individual missing
+
+h = hist(lmiss$F_MISS)
+h$density = h$counts/sum(h$counts)
+plot(h, freq = FALSE)
+
+```
+
+# From the output we decided to remove samples 2007 T1 and T2 as well as 2011 T3.
+
+# make new mpileup file
+
+```bash
+#!/bin/bash
+#SBATCH -D .
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=60G
+#SBATCH --time=18:00:00
+#SBATCH --job-name=to_mpileup
+#SBATCH --output=tompileup.out
+#SBATCH --error=tompileup.err
+
+module load samtools/1.10
+
+cd $WORK/seasonal_adaptation/analysis/variants
+
+samtools mpileup -q 15 -Q 0 -d 8000 -R -A -B \
+        -f $WORK/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+        -b $WORK/seasonal_adaptation/analysis/variants/bamfiles-excluding2007-2011.txt \
+        -o all.mpileup-excluding20072011
+```
+
+# rerun PoolSNP with same parameters but trying min-count10 and 5
+
+Check number of SNPs in each vcf output file
+
+```bash
+cd /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+
+#count snps
+#all samples included, maf 0.01, min cov 50, min count 10
+zgrep -v "^##" final-maf0.01-mincov50-mincount10-allsites0-allsamples_b.vcf.gz | wc -l
+# SNPs 21779
+
+#removing the 3 bad samples, maf 0.01, min cov 50, min count 10
+zgrep -v "^#" final-maf0.01-mincov50-mincount10-allsites0-excluding20072011.vcf.gz | wc -l
+#SNPs 2424258
+
+#removing the 3 bad samples, maf 0.01, min cov 50, min count 5
+zgrep -v "^#" final-maf0.01-mincov50-mincount5-allsites0-excluding20072011.vcf.gz | wc -l
+#SNPs 2424280
+
+```
+
+# remove biallelic snps
+
+```bash
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/software/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=5
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=10:00:00
+#SBATCH --job-name=biallelic
+#SBATCH --output=biallelic.out
+#SBATCH --error=biallelic.err
+module load vcftools/0.1.14
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP/finalfile.vcf.gz
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+
+
+vcftools --gzvcf $VCF --min-alleles 2 --max-alleles 2 --recode --out $OUT/finalfile_output_biallelic
+
+```
+
+# fix file so it can be read by grenedalf using python script
+
+```bash
+module load python/3.8.4
+
+#run python script on vcf with filtered biallelic positions
+
+python3 fix.py
+
+zgrep "^#" finalfile_output_biallelic.recode.vcf.gz > header.txt
+cat header.txt noheader2.txt > finalfile.vcf
+
+#tabix the vcf
+bgzip finalfile.vcf.gz
+tabix -p vcf finalfile.vcf.gz
+#add in header ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+
+#not needed but for future
+#make bed from final vcf
+module load bcftools/1.10.2
+bcftools view -v snps input.vcf.gz -o output_snps.vcf.gz
+bcftools query -f '%CHROM\t%POS0\t%POS1\n' finalfile.vcf > finalfile.bed
+
+#add in final vcf header 
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+# file needs to be indexed for rest of the analysis
+```
+# tabix file
+
+```bash
+bgzip finalfile.vcf
+tabix -p vcf finalfile.vcf
+
+```
+
+# calculate missing data per indivudal sample
+
+```bash
+module load vcftools/0.1.14
+vcftools --vcf final-maf0.01-mincov50-mincount10-allsites0-allsamples_b.vcf.gz --missing-indv
+ 
+#plot outputs in R
+#R scripts are saved in computer
+#check snps in the output files
+
+module load bcftools/1.10.2
+bcftools view -v snps input.vcf.gz -o output_snps.vcf.gzls
+```
+
+# filtering missing data 
+
+```bash 
+module load vcftools/0.1.14
+
+vcftools --gzvcf finalfile.vcf.gz  --max-missing 1.0  --recode --out finalfile.nomissingdata
+
+#output genotype depths
+vcftools --vcf finalfile.nomissingdata.recode.vcf --site-mean-depth --out finalfile.nomissingdata
+
+module load R/4.1.1
+```
+
+```r
+install.packages("data.table")
+install.packages("poolfstat")
+library(data.table)
+library(poolfstat)
+#trial plot
+plot(1,1)
+
+#load data 
+df <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/finalfile.nomissingdata.ldepth.mean", header = T)
+
+head(df)
+hist(df$MEAN_DEPTH)
+
+#check mean and median
+
+mean <- mean(df$MEAN_DEPTH)
+497.8522
+mean3 = mean*3
+1493.557
+
+sum(df$MEAN_DEPTH > mean3)
+81366
+sum(df$MEAN_DEPTH > mean3)/nrow(df)
+0.05871821
+
+#poolfstat
+#did not do this step with individual datanames
+inNames <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/finalfile.nomissingdata.ldepth.mean", header=T, sep="\t", nrow=1)
+inNames <- colnames(inNames)[grep("FREQ",colnames(inNames))]
+inNames <- inNames[1:length(inNames)-1]
+################################
+
+#remove all markers with a depth over than three times the mean
+dat <- vcf2pooldata(vcf.file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/finalfile.nomissingdata.recode.vcf",poolsizes=c(rep(100,14)),
+			min.cov.per.pool = 50,max.cov.per.pool=1493.5570,min.maf=0.01,nlines.per.readblock=1000000)
+
+pooldata2genobaypass(dat,writing.dir="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/")
+#ouput is snpdet
+```
+
+# correct for depth 
+# first make file with chrom + position of SNPs that have the proper depth 
+```bash
+awk '{print $1"\t"$2}' snpdet > snp-positions.txt
+```
+# filter this list with vcf
+
+```bash
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=16000 --time=02:00:00 /bin/bash
+
+vcftools --vcf finalfile.nomissingdata.recode.vcf --positions snp-positions.txt --recode --out depth-corrected
+
+#After filtering, kept 1258282 out of a possible 1385703 Sites
+
+
+#removing MAF errors
+bgzip depth-corrected.recode.vcf
+tabix -p vcf depth-corrected.recode.vcf.gz
+
+
+#run grenedalf
+module load htslib/1.10.2  bzip2/1.0.8  
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/depth-corrected.recode.vcf.gz
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/
+
+$GRENEDALF frequency --vcf-path $VCF  --reference-genome-fasta-file $GENOME --write-total-frequency --allow-file-overwriting --file-suffix depth-frequencies > $OUTPUT/grenedalftrial.log
+
+
+
+```
+
+
+# open file in R
+```r
+freq <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/frequencydepth-frequencies.csv", header=T)
+
+freq$MAF <- ifelse(freq$TOTAL.FREQ > 0.5, 1-freq$TOTAL.FREQ, freq$TOTAL.FREQ)
+
+hist(freq$TOTAL.FREQ,breaks=50)
+hist(freq$MAF,breaks=50)
+
+sum(freq$TOTAL.FREQ < 0.01)
+sum(freq$TOTAL.FREQ > 0.99)
+sum(freq$MAF < 0.01)
+sum(freq$MAF > 0.99)
+
+min(freq$MAF)
+max(freq$TOTAL.FREQ)
+sum(freq$TOTAL.FREQ < 0.01)
+#0
+sum(freq$TOTAL.FREQ > 0.99)
+#0
+sum(freq$MAF < 0.01)
+#0
+sum(freq$MAF > 0.99)
+#0
+min(freq$MAF)
+#0.01
+max(freq$MAF)
+#0.5
+max(freq$TOTAL.FREQ)
+#0.99
+sum(freq$MAF < 0.5)
+#1258257
+sum(freq$MAF < 0.05)
+#848949
+
+```
+# provide Reid access to my folders
+```bash
+setfacl -m u:smomw504:rx /gxfs_work1/geomar/smomw573
+```
+
+# generate individual frequencies grenedalf
+
+```bash
+module load htslib/1.10.2  bzip2/1.0.8  
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/depth-corrected.recode.vcf.gz
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/
+
+$GRENEDALF frequency --vcf-path $VCF  --reference-genome-fasta-file $GENOME --write-sample-alt-freq --file-suffix sample-frequencies > $OUTPUT/grenedalftrial.log
+```
+
+# plot pca in R
+
+```bash 
+module load R/4.1.1
+module load gcc/10.2.0
+```
+
+```R
+library(data.table)
+library(ggplot2)
+df<- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/frequencysample-frequencies.csv", header = T)
+head(df)
+#df <- noquote(t(frequency_ind_samples[,-(2:4)]))
+
+#colnames(df) <- df[1, ]
+
+# Remove the first row as it's now used for column names
+df <- df[,-(2:4)]
+#test data
+#df2 <- df[0:15,1:14]
+#df2
+#all okay
+
+pops <- c("EA_2009_T1.FREQ", "EA_2009_T2.FREQ", "EA_2009_T3.FREQ",
+          "EA_2009_T4.FREQ", "EA_2011_T1.FREQ", "EA_2011_T2.FREQ", 
+          "EA_2015_T1.FREQ", "EA_2015_T2.FREQ", "EA_2015_T3.FREQ", 
+          "EA_2015_T4.FREQ", "EA_2022_T1.FREQ", "EA_2022_T2.FREQ", 
+          "EA_2022_T3.FREQ", "EA_2022_T4.FREQ") 
+varout <- apply(df[, 2:ncol(df)], 1, var)
+
+freqs <- t(df[varout != 0,2:ncol(df)])
+
+
+nrow(freqs)
+ncol(freqs)
+#14 
+
+##
+## plot pca
+##
+
+pcaResult <- prcomp(freqs, scale=T)
+percentVar <- round(pcaResult$sdev^2/sum(pcaResult$sdev^2)*100, digits=2)
+
+data <- data.frame(
+  id = pops,
+  Line = substr(pops, 4, 7),
+  gen = substr(pops, 9,10),
+  PC1 = pcaResult$x[, 1],
+  PC2 = pcaResult$x[, 2],
+  PC3 = pcaResult$x[, 3]
+)
+
+#data$Line <- c(rep("Founding population", 4),
+#                rep("Ambient", 4),
+#                rep("Acidification", 4),
+#                rep("Warming", 4),
+#                rep("OWA", 4))
+
+data$Line <- factor(data$Line, levels = c("2009","2011", "2015", "2022"))
+data$gen <- factor(data$gen, levels = c("T1","T2", "T3", "T4"))
+data$PC2 <- data$PC2*-1
+
+d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
+        geom_point(size=4.5) +
+        xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+        ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+        theme_bw() +
+       # ylim(-30, 23) + xlim(-50, 65)+
+        scale_shape_manual(values=c( 21,21,22,23))+
+        scale_color_manual(values=c('black')) +
+        #scale_fill_manual(values=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3"),
+  scale_fill_manual(values=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A"),
+                    labels = c("2009","2011", "2015",
+                               "2022"))+
+        #theme(legend.position = c(0.83,0.85),
+        #    legend.background = element_blank(),
+        #legend.box.background = element_rect(colour = "black"),
+        theme(legend.title = element_blank()) +
+       # theme(legend.text=element_text(size=8))+
+        #theme(legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))+
+#        ggtitle("F1")+
+guides(fill=guide_legend(override.aes=list(
+        shape=c(21,21,22, 23),
+        #fill=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3" )),order = 2),
+    fill=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A")),order = 2))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_allsamples.pdf",d, w=5.5, h=3.7)
+
+
+#exclude samples 2009 T1 and 2015 T3
+
+df<- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/frequencysample-frequencies.csv", header = T)
+df <- df[,-c(2:5, 13)]
+
+
+
+pops <- c("EA_2009_T2.FREQ", "EA_2009_T3.FREQ",
+          "EA_2009_T4.FREQ", "EA_2011_T1.FREQ", 
+          "EA_2011_T2.FREQ", "EA_2015_T1.FREQ", 
+          "EA_2015_T2.FREQ", "EA_2015_T4.FREQ", 
+          "EA_2022_T1.FREQ", "EA_2022_T2.FREQ", 
+          "EA_2022_T3.FREQ", "EA_2022_T4.FREQ") 
+varout <- apply(df[, 2:ncol(df)], 1, var)
+freqs <- t(df[varout != 0,2:ncol(df)])
+
+
+nrow(freqs)
+ncol(freqs)
+
+
+##
+## plot pca
+##
+
+pcaResult <- prcomp(freqs, scale=T)
+percentVar <- round(pcaResult$sdev^2/sum(pcaResult$sdev^2)*100, digits=2)
+
+data <- data.frame(
+  id = pops,
+  Line = substr(pops, 4, 7),
+  gen = substr(pops, 9,10),
+  PC1 = pcaResult$x[, 1],
+  PC2 = pcaResult$x[, 2],
+  PC3 = pcaResult$x[, 3]
+)
+
+#data$Line <- c(rep("Founding population", 4),
+#                rep("Ambient", 4),
+#                rep("Acidification", 4),
+#                rep("Warming", 4),
+#                rep("OWA", 4))
+
+data$Line <- factor(data$Line, levels = c("2009","2011", "2015", "2022"))
+data$gen <- factor(data$gen, levels = c("T1","T2", "T3", "T4"))
+data$PC2 <- data$PC2*-1
+
+d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
+        geom_point(size=4.5) +
+        xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+        ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+        theme_bw() +
+       # ylim(-30, 23) + xlim(-50, 65)+
+        scale_shape_manual(values=c( 21,22,23,24))+
+        scale_color_manual(values=c('black')) +
+        #scale_fill_manual(values=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3"),
+  scale_fill_manual(values=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A"),
+                    labels = c("2009","2011", "2015","2022"))+
+        #theme(legend.position = c(0.83,0.85),
+        #    legend.background = element_blank(),
+        #legend.box.background = element_rect(colour = "black"),
+        theme(legend.title = element_blank()) +
+       # theme(legend.text=element_text(size=8))+
+        #theme(legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))+
+#        ggtitle("F1")+
+guides(fill=guide_legend(override.aes=list(
+        shape=c(21,21, 21,21),
+        #fill=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3" )),order = 2),
+    fill=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A")),order = 2))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_excluding20092015.pdf",d, w=5.5, h=3.7)
+
+######################################
+#repeat analysis with non-scaled data#
+######################################
+
+df1<- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/frequencysample-frequencies.csv", header = T)
+
+#df <- noquote(t(frequency_ind_samples[,-(2:4)]))
+
+#colnames(df) <- df[1, ]
+
+# Remove the first row as it's now used for column names
+df <- df1[,-(2:3)]
+df <- df[,-(2)]
+#test data
+#df2
+#all okay
+
+pops <- c("EA_2009_T1.FREQ", "EA_2009_T2.FREQ", "EA_2009_T3.FREQ",
+          "EA_2009_T4.FREQ", "EA_2011_T1.FREQ", "EA_2011_T2.FREQ", 
+          "EA_2015_T1.FREQ", "EA_2015_T2.FREQ", "EA_2015_T3.FREQ", 
+          "EA_2015_T4.FREQ", "EA_2022_T1.FREQ", "EA_2022_T2.FREQ", 
+          "EA_2022_T3.FREQ", "EA_2022_T4.FREQ") 
+varout <- apply(df[, 2:ncol(df)], 1, var)
+
+freqs <- t(df[varout != 0,2:ncol(df)])
+
+
+nrow(freqs)
+ncol(freqs)
+#14 
+
+##
+## plot pca
+##
+
+pcaResult <- prcomp(freqs, scale=F)
+percentVar <- round(pcaResult$sdev^2/sum(pcaResult$sdev^2)*100, digits=2)
+
+data <- data.frame(
+  id = pops,
+  Line = substr(pops, 4, 7),
+  gen = substr(pops, 9,10),
+  PC1 = pcaResult$x[, 1],
+  PC2 = pcaResult$x[, 2],
+  PC3 = pcaResult$x[, 3]
+)
+
+#data$Line <- c(rep("Founding population", 4),
+#                rep("Ambient", 4),
+#                rep("Acidification", 4),
+#                rep("Warming", 4),
+#                rep("OWA", 4))
+
+data$Line <- factor(data$Line, levels = c("2009","2011", "2015", "2022"))
+data$gen <- factor(data$gen, levels = c("T1","T2", "T3", "T4"))
+data$PC2 <- data$PC2*-1
+
+d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
+        geom_point(size=4.5) +
+        xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+        ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+        theme_bw() +
+       # ylim(-30, 23) + xlim(-50, 65)+
+        scale_shape_manual(values=c( 21,21,22,23))+
+        scale_color_manual(values=c('black')) +
+        #scale_fill_manual(values=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3"),
+  scale_fill_manual(values=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A"),
+                    labels = c("2009","2011", "2015",
+                               "2022"))+
+        #theme(legend.position = c(0.83,0.85),
+        #    legend.background = element_blank(),
+        #legend.box.background = element_rect(colour = "black"),
+        theme(legend.title = element_blank()) +
+       # theme(legend.text=element_text(size=8))+
+        #theme(legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))+
+#        ggtitle("F1")+
+guides(fill=guide_legend(override.aes=list(
+        shape=c(21,21,22, 23),
+        #fill=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3" )),order = 2),
+    fill=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A")),order = 2))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs-nonscaled_allsamples.pdf",d, w=5.5, h=3.7)
+
+
+#exclude samples 2009 T1 and 2015 T3
+
+df<- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/frequencysample-frequencies.csv", header = T)
+df <- df[,-c(2:5, 13)]
+
+pops <- c("EA_2009_T2.FREQ", "EA_2009_T3.FREQ",
+          "EA_2009_T4.FREQ", "EA_2011_T1.FREQ", 
+          "EA_2011_T2.FREQ", "EA_2015_T1.FREQ", 
+          "EA_2015_T2.FREQ", "EA_2015_T4.FREQ", 
+          "EA_2022_T1.FREQ", "EA_2022_T2.FREQ", 
+          "EA_2022_T3.FREQ", "EA_2022_T4.FREQ") 
+varout <- apply(df[, 2:ncol(df)], 1, var)
+freqs <- t(df[varout != 0,2:ncol(df)])
+
+
+nrow(freqs)
+ncol(freqs)
+
+
+##
+## plot pca
+##
+
+pcaResult <- prcomp(freqs, scale=F)
+percentVar <- round(pcaResult$sdev^2/sum(pcaResult$sdev^2)*100, digits=2)
+
+data <- data.frame(
+  id = pops,
+  Line = substr(pops, 4, 7),
+  gen = substr(pops, 9,10),
+  PC1 = pcaResult$x[, 1],
+  PC2 = pcaResult$x[, 2],
+  PC3 = pcaResult$x[, 3]
+)
+
+#data$Line <- c(rep("Founding population", 4),
+#                rep("Ambient", 4),
+#                rep("Acidification", 4),
+#                rep("Warming", 4),
+#                rep("OWA", 4))
+
+data$Line <- factor(data$Line, levels = c("2009","2011", "2015", "2022"))
+data$gen <- factor(data$gen, levels = c("T1","T2", "T3", "T4"))
+data$PC2 <- data$PC2*-1
+
+d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
+        geom_point(size=4.5) +
+        xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+        ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+        theme_bw() +
+       # ylim(-30, 23) + xlim(-50, 65)+
+        scale_shape_manual(values=c( 21,22,23,24))+
+        scale_color_manual(values=c('black')) +
+        #scale_fill_manual(values=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3"),
+  scale_fill_manual(values=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A"),
+                    labels = c("2009","2011", "2015","2022"))+
+        #theme(legend.position = c(0.83,0.85),
+        #    legend.background = element_blank(),
+        #legend.box.background = element_rect(colour = "black"),
+        theme(legend.title = element_blank()) +
+       # theme(legend.text=element_text(size=8))+
+        #theme(legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))+
+#        ggtitle("F1")+
+guides(fill=guide_legend(override.aes=list(
+        shape=c(21,21, 21,21),
+        #fill=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3" )),order = 2),
+    fill=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A")),order = 2))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs-nonscaled_excluding20092015.pdf",d, w=5.5, h=3.7)
+```
+
+# calculate Fst between different populations
+ as discussed with Reid, we should see if there are any chances in Fst during the course of the year - so comparing early vs late populations could give us an idea of this.
+ the comparisons will be:
+ EA_2009_T1 vs EA_2009_T4
+ EA_2011_T1 vs EA_2011_T3
+ EA_2015_T1 vs EA_2015_T4
+ EA_2022_T1 vs EA_2015_T4
+
+# Trial Fst comparisons with grenedalf
+```bash
+#run grenedalf
+module load htslib/1.10.2  bzip2/1.0.8  
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/depth-corrected.recode.vcf.gz
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/
+
+$GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method unbiased-hudson --pool-sizes 50 --window-type sliding --window-sliding-width 1000 --file-suffix all-parwise  --out-dir $OUTPUT/grenedalfst.log
+
+$GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method unbiased-hudson --pool-sizes 50 --window-type sliding --window-sliding-width 5000 --file-suffix all-parwise-5000  --out-dir $OUTPUT/grenedalfst.log
+
+$GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method unbiased-hudson --pool-sizes 50 --window-type sliding --window-sliding-width 10000 --file-suffix all-parwise-10000  --out-dir $OUTPUT/grenedalfst.log
+
+#single snp by snp FST calculation
+
+$GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method unbiased-hudson --pool-sizes 50 --window-type single --file-suffix single-snps2 --out-dir $OUTPUT/grenedalfst.log
+
+#sort vcf
+
+module load bcftools/1.10.2
+
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/affinis.Atlantic.long_read_draft.Mar22.fasta \
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf.gz
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_sorted.vcf.gz
+
+
+bcftools sort -Ov -o $OUTPUT -T tmp_dir -m 1000M $VCF
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_sorted.vcf.gz \
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/affinis.Atlantic.long_read_draft.Mar22.fasta \
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/
+
+$GRENEDALF fst --vcf-path $VCF --method unbiased-hudson --allow-file-overwriting --pool-sizes 100 --window-type queue --window-queue-count 1 --file-suffix single-snps-newvcf-queue --out-dir $OUTPUT/grenedalfst.log
+
+#rerun analyisis with transformed genome
+
+```
+
+transform all negative values to zero
+
+Fix csv file and plot pairwise comparisons in R.
+
+```bash
+module load R/4.1.1
+R
+```
+```R
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(reshape2)
+
+fst <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/fst-all-pairwise.csv", header = TRUE, na.strings = "")
+#negative values to zeros
+
+fst <- fst %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+
+#means of each colums (are the some higher then others)
+
+mean_fst <- colMeans(fst[, 5:ncol(fst)], na.rm = TRUE)
+
+#scatterplot number of snps per window
+
+mean_fst 
+> means
+EA_2009_T1.EA_2009_T2 EA_2009_T1.EA_2009_T3 EA_2009_T1.EA_2009_T4
+         6.522382e-04          9.119229e-04          8.192032e-04
+EA_2009_T1.EA_2011_T1 EA_2009_T1.EA_2011_T2 EA_2009_T1.EA_2015_T1
+         9.224172e-04          1.136448e-03          1.360173e-03
+EA_2009_T1.EA_2015_T2 EA_2009_T1.EA_2015_T3 EA_2009_T1.EA_2015_T4
+         1.306930e-03          7.707226e-04          1.405240e-03
+EA_2009_T1.EA_2022_T1 EA_2009_T1.EA_2022_T2 EA_2009_T1.EA_2022_T3
+         1.432560e-03          1.388207e-03          1.539748e-03
+EA_2009_T1.EA_2022_T4 EA_2009_T2.EA_2009_T3 EA_2009_T2.EA_2009_T4
+         1.408387e-03          2.212941e-04          1.727231e-04
+EA_2009_T2.EA_2011_T1 EA_2009_T2.EA_2011_T2 EA_2009_T2.EA_2015_T1
+         3.530734e-04          3.538277e-04          5.111806e-04
+EA_2009_T2.EA_2015_T2 EA_2009_T2.EA_2015_T3 EA_2009_T2.EA_2015_T4
+         5.006985e-04          4.776478e-04          5.687172e-04
+EA_2009_T2.EA_2022_T1 EA_2009_T2.EA_2022_T2 EA_2009_T2.EA_2022_T3
+         5.954697e-04          5.563285e-04          6.646338e-04
+EA_2009_T2.EA_2022_T4 EA_2009_T3.EA_2009_T4 EA_2009_T3.EA_2011_T1
+         5.654983e-04          9.451288e-05          3.842776e-04
+EA_2009_T3.EA_2011_T2 EA_2009_T3.EA_2015_T1 EA_2009_T3.EA_2015_T2
+         2.044344e-04          2.918076e-04          3.178607e-04
+EA_2009_T3.EA_2015_T3 EA_2009_T3.EA_2015_T4 EA_2009_T3.EA_2022_T1
+         5.442187e-04          3.234878e-04          4.064266e-04
+EA_2009_T3.EA_2022_T2 EA_2009_T3.EA_2022_T3 EA_2009_T3.EA_2022_T4
+         4.129459e-04          4.696007e-04          3.566869e-04
+EA_2009_T4.EA_2011_T1 EA_2009_T4.EA_2011_T2 EA_2009_T4.EA_2015_T1
+         3.001030e-04          1.674710e-04          2.809781e-04
+EA_2009_T4.EA_2015_T2 EA_2009_T4.EA_2015_T3 EA_2009_T4.EA_2015_T4
+         2.926337e-04          4.850598e-04          3.177162e-04
+EA_2009_T4.EA_2022_T1 EA_2009_T4.EA_2022_T2 EA_2009_T4.EA_2022_T3
+         3.578791e-04          3.527122e-04          4.222247e-04
+EA_2009_T4.EA_2022_T4 EA_2011_T1.EA_2011_T2 EA_2011_T1.EA_2015_T1
+         3.444598e-04          3.314538e-04          3.071385e-04
+EA_2011_T1.EA_2015_T2 EA_2011_T1.EA_2015_T3 EA_2011_T1.EA_2015_T4
+         2.882376e-04          3.725812e-04          3.199376e-04
+EA_2011_T1.EA_2022_T1 EA_2011_T1.EA_2022_T2 EA_2011_T1.EA_2022_T3
+         3.075624e-04          2.813889e-04          3.398815e-04
+EA_2011_T1.EA_2022_T4 EA_2011_T2.EA_2015_T1 EA_2011_T2.EA_2015_T2
+         3.092691e-04          1.928528e-04          1.731642e-04
+EA_2011_T2.EA_2015_T3 EA_2011_T2.EA_2015_T4 EA_2011_T2.EA_2022_T1
+         6.036474e-04          2.024127e-04          2.407018e-04
+EA_2011_T2.EA_2022_T2 EA_2011_T2.EA_2022_T3 EA_2011_T2.EA_2022_T4
+         2.340229e-04          2.840422e-04          2.042804e-04
+EA_2015_T1.EA_2015_T2 EA_2015_T1.EA_2015_T3 EA_2015_T1.EA_2015_T4
+         7.216167e-05          5.353443e-04          4.000097e-05
+EA_2015_T1.EA_2022_T1 EA_2015_T1.EA_2022_T2 EA_2015_T1.EA_2022_T3
+         1.371440e-04          1.315774e-04          1.163237e-04
+EA_2015_T1.EA_2022_T4 EA_2015_T2.EA_2015_T3 EA_2015_T2.EA_2015_T4
+         7.212490e-05          5.151115e-04          8.000057e-05
+EA_2015_T2.EA_2022_T1 EA_2015_T2.EA_2022_T2 EA_2015_T2.EA_2022_T3
+         1.242289e-04          1.416661e-04          1.333631e-04
+EA_2015_T2.EA_2022_T4 EA_2015_T3.EA_2015_T4 EA_2015_T3.EA_2022_T1
+         1.043142e-04          6.021291e-04          6.011546e-04
+EA_2015_T3.EA_2022_T2 EA_2015_T3.EA_2022_T3 EA_2015_T3.EA_2022_T4
+         5.817207e-04          6.458708e-04          6.006643e-04
+EA_2015_T4.EA_2022_T1 EA_2015_T4.EA_2022_T2 EA_2015_T4.EA_2022_T3
+         1.287545e-04          1.227300e-04          1.031789e-04
+EA_2015_T4.EA_2022_T4 EA_2022_T1.EA_2022_T2 EA_2022_T1.EA_2022_T3
+         7.271113e-05          1.041804e-04          1.297219e-04
+EA_2022_T1.EA_2022_T4 EA_2022_T2.EA_2022_T3 EA_2022_T2.EA_2022_T4
+         1.114017e-04          1.310401e-04          1.054126e-04
+EA_2022_T3.EA_2022_T4
+         8.650827e-05
+
+unique_values <- as.list(unique(fst$end))
+unique_values
+#[[1]] 1000
+#[[2]]3000
+#[[3]]2000
+#[[4]] 4000
+#[[5]] 5000
+#[[6]] 6000
+#[[7]] 7000
+#[[8]] 8000
+#[[9]] 9000
+#[[10]] 10000
+#[[11]] 11000
+#[[12]] 12000
+#[[13]] 13000
+
+
+
+#boxplot to check variation between each pairwise comparison, this way we can see which ones are higher
+fst2 <- fst[,-(1:4)]
+fst2 <- as.data.frame(fst2)
+#remove missing data
+
+#count NAs
+sumnas <- sum(is.na(fst2))
+#it has 8160 NAs
+
+# Count NA values in each column
+column_na_counts <- colSums(is.na(fst2))
+
+# Print the results
+print("Total NA Count:")
+print(total_na_count)
+print("NA Counts in Each Column:")
+print(column_na_counts)
+
+### remove mising data
+data_clean <- fst2
+data_clean <- na.omit(data_clean)
+
+
+# Reshape the data into long format
+data_long <- tidyr::gather(data_clean, key = "Column", value = "Value")
+data_long$Column <- as.factor(data_long$Column)
+
+# Create boxplots using ggplot2
+d <- ggplot(data_long, aes(x=Column, y=Value)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/boxplotfst.pdf",d, w=7.5, h=4.7)
+#8160 rows removed with missing values
+
+
+#subset for pairwise comparisons of interest
+
+column_names <- colnames(fst2)
+print(column_names)
+ 
+
+fst_subset<- fst2[, c("EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4", "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4","EA_2009_T3.EA_2009_T4","EA_2011_T1.EA_2011_T2",  "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3", 
+	"EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4", "EA_2015_T3.EA_2015_T4","EA_2022_T1.EA_2022_T2",
+	"EA_2022_T1.EA_2022_T3", "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4", "EA_2022_T3.EA_2022_T4")]
+
+
+#create new variable year
+
+fst_subset <- as.data.frame(fst_subset)
+data_clean <- na.omit(data_clean)
+data_long <- tidyr::gather(data_clean, key = "Column", value = "Value") # gather() function from the tidyr package to convert your dataset to long format.
+data_long$Column <- as.factor(data_long$Column)
+
+names(data_long)[1] <- "Column"
+year<- rep (NA, length(data_long$Column))
+year[grep("2009", data_long$Column)] <- "2009"
+year[grep("2011", data_long$Column)] <- "2011"
+year[grep("2015", data_long$Column)] <- "2015"
+year[grep("2022", data_long$Column)] <- "2022"
+
+data_long$year <- year
+
+
+#plot
+
+d <- ggplot(data_long, aes(x=Column, y=Value)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/boxplot-fst-main-comparisons.pdf",d, w=12, h=4.7)
+
+#removed 1821 rows
+
+
+#scater plots
+
+# Create a scatter plot grid using facet_grid
+d <- ggplot(data_long, aes(x = Column, y = Value)) +
+  geom_point() + #~ Column indicates that each facet corresponds to a different column.
+  facet_grid(. ~ year, scales = "free") + # The scales = "free" argument allows each facet to have its own y-axis scale.
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Pairwise comparison", y = "Fst")
+
+
+ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/boxplot-fst-scatter-main-comparisons.pdf",d, w=12, h=6)
+
+
+#trial heatmap
+
+
+mean_fst_subset <- colMeans(fst_subset, na.rm = TRUE)
+mean_fst_subset
+
+EA_2009_T1.EA_2009_T2 EA_2009_T1.EA_2009_T3 EA_2009_T1.EA_2009_T4
+         6.522382e-04          9.119229e-04          8.192032e-04
+EA_2009_T2.EA_2009_T3 EA_2009_T2.EA_2009_T4 EA_2009_T3.EA_2009_T4
+         2.212941e-04          1.727231e-04          9.451288e-05
+EA_2011_T1.EA_2011_T2 EA_2015_T1.EA_2015_T2 EA_2015_T1.EA_2015_T3
+         3.314538e-04          7.216167e-05          5.353443e-04
+EA_2015_T1.EA_2015_T4 EA_2015_T2.EA_2015_T3 EA_2015_T2.EA_2015_T4
+         4.000097e-05          5.151115e-04          8.000057e-05
+EA_2015_T3.EA_2015_T4 EA_2022_T1.EA_2022_T2 EA_2022_T1.EA_2022_T3
+         6.021291e-04          1.041804e-04          1.297219e-04
+EA_2022_T1.EA_2022_T4 EA_2022_T2.EA_2022_T3 EA_2022_T2.EA_2022_T4
+         1.114017e-04          1.310401e-04          1.054126e-04
+EA_2022_T3.EA_2022_T4
+         8.650827e-05
+
+heatmap_matrix <- mean_fst_subset %>% rownames_to_column(var = "Pairwise") %>% pivot_longer(cols = -Pairwise, names_to = "Variable", values_to = "Mean")
+
+#fix data cause something went wrong
+
+mean_fst_matrix <- matrix(
+  c(
+    6.522382e-04, 9.119229e-04, 8.192032e-04,
+    2.212941e-04, 1.727231e-04, 9.451288e-05,
+    3.314538e-04, 7.216167e-05, 5.353443e-04,
+    4.000097e-05, 5.151115e-04, 8.000057e-05,
+    6.021291e-04, 1.041804e-04, 1.297219e-04,
+    1.114017e-04, 1.310401e-04, 1.054126e-04,
+    8.650827e-05),
+ nrow = 19,
+ ncol=19,   # Number of pairwise comparisons (rows)
+ byrow = TRUE,
+ dimnames = list(
+    c(
+      "EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4",
+      "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4", "EA_2009_T3.EA_2009_T4",
+      "EA_2011_T1.EA_2011_T2", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3",
+      "EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4",
+      "EA_2015_T3.EA_2015_T4", "EA_2022_T1.EA_2022_T2", "EA_2022_T1.EA_2022_T3",
+      "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4",
+      "EA_2022_T3.EA_2022_T4"),
+    c(
+      "EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4",
+      "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4", "EA_2009_T3.EA_2009_T4",
+      "EA_2011_T1.EA_2011_T2", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3",
+      "EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4",
+      "EA_2015_T3.EA_2015_T4", "EA_2022_T1.EA_2022_T2", "EA_2022_T1.EA_2022_T3",
+      "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4",
+      "EA_2022_T3.EA_2022_T4")
+  	)
+  )
+
+# Plot a heatmap using the heatmap() function
+
+# Get the row and column names from dimnames
+row_names <- rownames(mean_fst_matrix)
+col_names <- colnames(mean_fst_matrix)
+
+# Calculate the number of rows and columns in the matrix
+n_rows <- nrow(mean_fst_matrix)
+n_cols <- ncol(mean_fst_matrix)
+
+#list diagonal values
+ diagonal_values <- diag(mean_fst_matrix)
+
+# Create a data frame with the diagonal values
+diagonal_data <- data.frame(
+  Pairwise = rownames(mean_fst_matrix),
+  Value = diagonal_values
+)
+
+# Plot the heatmap of diagonal values
+d <- ggplot(diagonal_data, aes(x = Pairwise, y = Pairwise, fill = Value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(x = NULL, y = NULL)
+
+print(heatmap_plot)
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/heatmap-fst-window1000-maincomparisons.pdf",d, w=10, h=8)
+
+
+
+
+#plot full fst
+packages <- c("ComplexHeatmap", "grid", "Rcpp", "stats", "base", "plotrix", "wesanderson", "textshape")
+install.packages(packages)
+#install complexheatmap for older version
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("ComplexHeatmap")
+library("ComplexHeatmap")
+library("grid")
+library("Rcpp")
+library("stats")
+library("base")
+library("plotrix")
+library("wesanderson")
+library("textshape")
+install.packages("pheatmap")
+library(pheatmap)
+
+fst_cleaned <- na.omit(fst)
+missing_values <- any(is.na(fst))
+if (missing_values) {
+  cat("Missing values detected in the data.\n")
+} else {
+  cat("No missing values found in the data.\n")
+}
+
+
+# Remove row names and column names for heatmap
+data_for_heatmap <- fst_cleaned[, 5:ncol(fst)]  # Exclude the first column (chrom)
+
+fst_cleaned$countdown <- seq(nrow(fst_cleaned), 1)
+fst_cleaned$full_name <- paste0(fst_cleaned$chrom, fst_cleaned$countdown)
+rownames(data_for_heatmap) <- fst_cleaned$full_name
+
+
+# Convert data to a matrix
+mat <- as.matrix(data_for_heatmap)
+
+# Create a heatmap using pheatmap
+d <- pheatmap(mat,
+         scale = "none",  # You can customize scaling if needed
+         col = colorRampPalette(c("white", "blue"))(100),
+         fontsize_row = 8,
+         fontsize_col = 8,
+      
+         annotation_legend = TRUE, annotation_names_row = FALSE, annotation_names_col = TRUE,
+         drop_levels = FALSE, show_rownames = F, show_colnames = T, 
+         main = "Heatmap of Data")
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/trial-heatmap-fst-window1000.pdf",d, w=10, h=8)
+
+########################snps per bin####################
+#####comparison between 1000 and 5000 bin sizes#########
+########################################################
+
+
+fst <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/fst-all-pairwise.csv", header = TRUE, na.strings = "")
+#negative values to zeros
+
+fst <- fst %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+fst_cleaned <- na.omit(fst)
+
+sum_smaller_than_10 <- sum(fst_cleaned$snps < 2)
+
+# Print the result
+cat("Number of entries smaller than 10:", sum_smaller_than_10, "\n")
+#9596
+#1349 smaller than 2
+
+#create a new colum for each bin
+#fst_cleaned$bins <- paste(fst_cleaned$start, fst_cleaned$end, sep = "-")
+fst_cleaned$bins <- paste(fst_cleaned$chrom, fst_cleaned$start, fst_cleaned$end,sep = "-")
+fst_cleaned$bins<- factor(fst_cleaned$bins)
+
+#number of bins
+num_different_values <- length(unique(fst_cleaned$bins))
+num_different_values
+#42728 chroms
+#2.5% of the bins only have 1 SNPs, perhaps using 5K windows makes more sense 
+
+#plot scatter plot per bin
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/trial-snps-per.bin-1000.pdf", height=6,width=10)
+plot(fst_cleaned$bins, fst_cleaned$snps, main = "Scatter Plot", xlab = "Bins", ylab = "N SNPs", ylim = c(0, 800), pch = 16, col = "blue",  xaxt = "n")
+dev.off()
+
+
+###########################
+#for 5000K window size #
+###########################
+
+fst <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/fstall-parwise-5000.csv", header = TRUE, na.strings = "")
+#negative values to zeros
+
+fst <- fst %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+
+#means of each colums (are the some higher then others)
+
+mean_fst <- colMeans(fst[, 5:ncol(fst)], na.rm = TRUE)
+
+#scatterplot number of snps per window
+
+mean_fst 
+
+
+#boxplot to check variation between each pairwise comparison, this way we can see which ones are higher
+
+fst2 <- as.data.frame(fst2)
+#remove missing data
+
+#count NAs
+sumnas <- sum(is.na(fst2))
+#2411 less missing data than 1K windows
+
+### remove mising data
+data_clean<- na.omit(fst2)
+
+# Reshape the data into long format
+data_long <- tidyr::gather(data_clean, key = "Column", value = "Value")
+data_long$Column <- as.factor(data_long$Column)
+
+# Create boxplots using ggplot2
+d <- ggplot(data_long, aes(x=Column, y=Value)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/boxplotfst-5Kwindows.pdf",d, w=7.5, h=4.7)
+
+#subset for pairwise comparisons of interest
+
+column_names <- colnames(fst2)
+print(column_names)
+ 
+
+fst_subset<- data_clean[, c("EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4", "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4","EA_2009_T3.EA_2009_T4","EA_2011_T1.EA_2011_T2",  "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3", 
+	"EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4", "EA_2015_T3.EA_2015_T4","EA_2022_T1.EA_2022_T2",
+	"EA_2022_T1.EA_2022_T3", "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4", "EA_2022_T3.EA_2022_T4")]
+
+
+#create new variable year
+
+fst_subset <- as.data.frame(fst_subset)
+#data_clean <- fst_subset
+data_long <- tidyr::gather(fst_subset, key = "Column", value = "Value") # gather() function from the tidyr package to convert your dataset to long format.
+data_long$Column <- as.factor(data_long$Column)
+
+names(data_long)[1] <- "Column"
+year<- rep (NA, length(data_long$Column))
+year[grep("2009", data_long$Column)] <- "2009"
+year[grep("2011", data_long$Column)] <- "2011"
+year[grep("2015", data_long$Column)] <- "2015"
+year[grep("2022", data_long$Column)] <- "2022"
+
+data_long$year <- year
+
+
+#plot
+
+d <- ggplot(data_long, aes(x=Column, y=Value)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/boxplot-fst-main-comparisons-5Kwindows.pdf",d, w=12, h=4.7)
+
+#scater plots
+d <- ggplot(data_long, aes(x = Column, y = Value)) +
+  geom_point() + #~ Column indicates that each facet corresponds to a different column.
+  facet_grid(. ~ year, scales = "free") + # The scales = "free" argument allows each facet to have its own y-axis scale.
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Pairwise comparison", y = "Fst")
+
+
+ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/boxplot-fst-scatter-main-comparisons-5kwindows.pdf",d, w=12, h=6)
+
+
+# Create a scatter plot grid using facet_grid
+
+
+#trial heatmap
+
+
+mean_fst_subset <- colMeans(fst_subset, na.rm = TRUE)
+mean_fst_subset
+
+heatmap_matrix <- mean_fst_subset %>% rownames_to_column(var = "Pairwise") %>% pivot_longer(cols = -Pairwise, names_to = "Variable", values_to = "Mean")
+
+#fix data cause something went wrong
+
+mean_fst_matrix <- matrix(
+  c(
+     6.251438e-04, 8.726515e-04, 7.699255e-04,
+     2.069383e-04, 1.547305e-04, 8.344243e-05,
+     3.222143e-04, 6.337224e-05, 5.170126e-04,
+     3.289386e-05, 4.931738e-04, 7.707632e-05, 
+     5.848110e-04, 9.421378e-05, 1.233745e-04, 
+     1.060758e-04, 1.230012e-04, 9.586955e-05, 8.112256e-05),
+ nrow = 19,
+ ncol=19,   # Number of pairwise comparisons (rows)
+ byrow = TRUE,
+ dimnames = list(
+    c(
+      "EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4",
+      "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4", "EA_2009_T3.EA_2009_T4",
+      "EA_2011_T1.EA_2011_T2", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3",
+      "EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4",
+      "EA_2015_T3.EA_2015_T4", "EA_2022_T1.EA_2022_T2", "EA_2022_T1.EA_2022_T3",
+      "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4",
+      "EA_2022_T3.EA_2022_T4"),
+    c(
+      "EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4",
+      "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4", "EA_2009_T3.EA_2009_T4",
+      "EA_2011_T1.EA_2011_T2", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3",
+      "EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4",
+      "EA_2015_T3.EA_2015_T4", "EA_2022_T1.EA_2022_T2", "EA_2022_T1.EA_2022_T3",
+      "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4",
+      "EA_2022_T3.EA_2022_T4")
+  	)
+  )
+
+# Plot a heatmap using the heatmap() function
+
+# Get the row and column names from dimnames
+row_names <- rownames(mean_fst_matrix)
+col_names <- colnames(mean_fst_matrix)
+
+# Calculate the number of rows and columns in the matrix
+n_rows <- nrow(mean_fst_matrix)
+n_cols <- ncol(mean_fst_matrix)
+
+#list diagonal values
+ diagonal_values <- diag(mean_fst_matrix)
+
+# Create a data frame with the diagonal values
+diagonal_data <- data.frame(
+  Pairwise = rownames(mean_fst_matrix),
+  Value = diagonal_values
+)
+
+# Plot the heatmap of diagonal values
+d <- ggplot(diagonal_data, aes(x = Pairwise, y = Pairwise, fill = Value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(x = NULL, y = NULL)
+
+print(heatmap_plot)
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/heatmap-fst-window5000-maincomparisons.pdf",d, w=10, h=8)
+
+
+#bin calculations
+
+sum_smaller_than_10 <- sum(data_clean$snps < 10)
+sum_smaller_than_10
+# Print the result
+cat("Number of entries smaller than 10:", sum_smaller_than_10, "\n")
+#0
+data_clean<- na.omit(fst)
+
+#create a new colum for each bin
+#fst_cleaned$bins <- paste(fst_cleaned$start, fst_cleaned$end, sep = "-")
+data_clean$bins <- paste(data_clean$chrom, data_clean$start, data_clean$end,sep = "-")
+data_clean$bins<- factor(data_clean$bins)
+
+#number of bins
+num_different_values <- length(unique(data_clean$bins))
+num_different_values
+#41161
+#0 % of the bins has less than 10 snps per bin
+
+#plot scatter plot per bin
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/trial-snps-per.bin-5000.pdf", height=6,width=10)
+plot(data_clean$bins, data_clean$snps, main = "Scatter Plot", xlab = "Bins", ylab = "N SNPs", pch = 16, col = "blue",  xaxt = "n")
+dev.off()
+```
+
+# Manhattan plot of single snp by snp Fst calculation
+
+``` bash
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=32000 --time=06:00:00 /bin/bash
+module load R/4.1.1
+module load gcc/10.2.0
+R
+```
+```R
+library(pcadapt)
+library(data.table)
+library(qqman)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+
+
+#input data must be a matrix with samples as row names and fst values as colums
+freq <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/fstsingle-snps.csv", header = TRUE)
+
+# Count rows with NaN values
+sum(apply(freq, 1, function(row) any(is.nan(row))))
+freq_clean <- na.omit(freq)
+save(freq_clean, file = "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/freq_clean.RData")
+
+#########################################################
+######trial boxplot for relevant pairwise comparisons####
+#########################################################
+
+#Processed 41599 chromosomes with 1258282 (non-filtered) positions in 6872734 windows.
+#Total filter summary (after applying all sample filters):
+#Passed:               1258282
+
+freq_clean<- na.omit(freq_clean)
+freq_clean2  <- freq_clean  %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+
+
+
+fst_subset<- freq_clean2[, c("EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4", "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4","EA_2009_T3.EA_2009_T4","EA_2011_T1.EA_2011_T2",  "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3", 
+  "EA_2015_T1.EA_2015_T4", "EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4", "EA_2015_T3.EA_2015_T4","EA_2022_T1.EA_2022_T2",
+  "EA_2022_T1.EA_2022_T3", "EA_2022_T1.EA_2022_T4", "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4", "EA_2022_T3.EA_2022_T4")]
+fst2 <- fst_subset[,-(1:4)]
+fst2  <- fst2  %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+##############################################continuation of analyisis
+
+
+df_long <- freq_clean %>%
+  pivot_longer(cols = 5:95, names_to = "Chrom", values_to = "Value")
+df_long$combined <- paste(df_long$chrom, df_long$start)
+
+
+
+#ad a numeric column for chrom
+data <- df_long %>%
+  mutate(number = match(chrom, unique(chrom)))
+save("/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/formated_table_FSTSINGLE.RData")
+
+#simple plot
+x <- seq_along(df_long$chrom)
+
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/singlesnpfst.pdf", height=6,width=10)
+plot(data$number, data$Value, xlab = "Index", ylab = "Fst", main = "Single SNP Fst", xaxt = "n")
+dev.off()
+
+#doesnt work with FST data?
+
+library(qqman)
+load("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/longFST.RData")
+#plot manhattan plot long data
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/manhattan-singlesnps.pdf", height=6,width=10)
+manhattan(data, chr="number", bp="start", snp="combined", p="Value" )
+dev.off()
+
+###
+
+load("/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/formated_table_FSTSINGLE.RData")
+d <- ggplot(data, aes(x=number, y=Value)) +
+  geom_point(size=2, shape=23)+
+    theme_minimal() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/trialscatterfst.pdf",d, w=7.5, h=4.7)
+####
+#calculate number of SNPs per chrom
+
+
+
+# Define the file path for the new CSV file (same folder)
+output_file <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/fstsingle-snps-cleaned.csv"
+
+# Save the cleaned data frame as a new CSV file
+write.csv(freq_clean, file = output_file, row.names = FALSE)
+
+cat("Cleaned data frame has been saved as:", output_file, "\n")
+
+#why dont we have an FST for all snps?
+nrow(freq_clean)
+# FST values 1098611 from 1258282 SNPs in original vcf file, why?
+
+
+freq_clean <- freq_clean[, !(names(freq_clean) %in% c("start", "end", "snps"))]
+freq_clean  <- freq_clean  %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+save(freq_clean, file = "nonanozeros-allsnps.rds")
+df <- freq_clean[-1,-1]
+
+count_zero_columns <- sum(rowSums(df) == 0)
+print(count_zero_columns)
+# 555450
+
+trans<- t(freq_clean)
+mtrans <- as.matrix(trans)
+mtrans<-matrix(mtrans, ncol= ncol(trans), dimnames =NULL)
+
+
+#create pcadapt file
+output_file <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/pcadapt-input.csv"
+
+# Save the cleaned data frame as a new CSV file
+write.table(mtrans, file = output_file, row.names = FALSE, col.names = FALSE, quote=FALSE)
+
+#heatmap FST snp per snp
+
+library("ComplexHeatmap")
+library("grid")
+library("Rcpp")
+library("stats")
+library("base")
+library("plotrix")
+library("wesanderson")
+library("textshape")
+library(pheatmap)
+
+load ("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/freq_clean.RData")
+
+
+freq_clean  <- freq_clean  %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+check <- freq_clean[c(1:100),c(1:95)]
+
+# Remove row names and column names for heatmap
+data_for_heatmap <- freq_clean[, 5:ncol(fst)]  # Exclude the first column (chrom)
+
+freq_clean$countdown <- seq(nrow(freq_clean), 1)
+freq_clean$full_name <- paste0(freq_clean$chrom, freq_clean$countdown)
+rownames(data_for_heatmap) <- freq_clean$full_name
+
+# Convert data to a matrix
+mat <- as.matrix(data_for_heatmap)
+subset_mat <- mat[,c(1,2,3,64,65,66,86,87,88,89,90,91)]
+
+#freq_clean_sub <- data_for_heatmap[,c(1,2,3,64,65,66,86,87,88,89,90,91)]
+#plot mean of single snps across all samples
+
+mean_fst <- rowMeans(data_for_heatmap)
+colnames(mean_fst) <- c("chrom", "mean_fst")
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/singlesnpfst_mean.pdf", height=6,width=10)
+plot(mean_fst, xlab = "Index", ylab = "Fst", main = "Mean Single SNP Fst")
+dev.off()
+
+#plot histogram
+
+#transform data columns into rows
+load ("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/freq_clean.RData")
+freq_clean  <- freq_clean  %>% mutate_all(function(x) ifelse(x < 0, 0, x))
+slot1 <- freq_clean[, 5:ncol(fst)]  # Exclude the first column (chrom)
+
+
+#frombefore
+
+
+new_row_names <- paste0(row.names(slot1), "_", colnames(slot1)[-1])
+# Assign the new row names to the dataframe
+row.names(data) <- new_row_names
+
+# Reshape the data
+reshaped_data <- slot1 %>%
+  tibble::rownames_to_column(var = "row_name") %>%
+  pivot_longer(-row_name, names_to = "Column", values_to = "Value")
+#plot histogram
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/histogram_singlesnp_fst.pdf", height=6,width=10)
+hist_data <- hist(reshaped_data$Value, xlab="breaks", ylab= "Frequency", breaks=30)
+# Calculate midpoints of each bin
+midpoints <- (hist_data$breaks[-1] + hist_data$breaks[-length(hist_data$breaks)]) / 2
+# Get counts in each bin
+counts <- hist_data$counts
+text(hist_data$mids, hist_data$counts, labels = hist_data$counts, pos = 3)
+dev.off()
+
+sum(reshaped_data$Value > 0.95)
+
+
+#freq table
+slot1 <- freq_clean[, c(1, (5:ncol(freq_clean)))]
+transformed_data <- slot1 %>%
+  pivot_longer(cols = -chrom, names_to = "Column", values_to = "Value") %>%
+  select(chrom, Column, Value)
+
+freq <- as.data.frame(table(transformed_data$chrom))
+sum(transformed_data$Value == 0)
+#93805542
+sum(transformed_data$Value > 0)
+#2872226
+
+
+#plot SNPs per chrom
+pdf(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/nsnpsperchrom.pdf", height=6,width=10)
+plot(freq$Freq, pch = 16, col = "black", xlab = "Index", ylab = "n SNPs", main = "SNPs per chrom")
+dev.off()
+mean(freq$Freq)
+#2361.277
+```
+
+# now I want to estimate the genome wide Fst and plot it
+# for this, I am using the poolfstat R package
+
+```bash
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=32000 --time=06:00:00 /bin/bash
+module load R/4.1.1
+module load gcc/10.2.0
+module load icu4c/67.1
+
+R
+```
+
+enter R environment 
+
+
+```R
+library(poolfstat)
+#poolfstat for vcf
+
+library(poolfstat)
+
+#import vcf file
+ea.readcount30X <- vcf2pooldata(vcf.file="depth-corrected.recode.vcf.gz",poolsizes=rep(50,14))
+# summary of the resulting pooldata object
+ea.readcount30X
+
+#ha?
+selected.snps.idx <- as.numeric(sub("rs","",rownames(ea.readcount30X@snp.info)))
+head(selected.snps.idx)
+
+#estimate genome wide Fst across all the popuatlions
+ea.readcount30X.fst<-computeFST(ea.readcount30X)
+ea.readcount30X.fst$FST
+#genome wide Fst is -0.01960076, so 0
+
+# Block-Jackknife estimation of FST standard-error and confidence intervals:
+ea.readcount30X.fst<-computeFST(ea.readcount30X,nsnp.per.bjack.block = 1000, verbose=FALSE)
+ea.readcount30X.fst$FST
+#same value  -0.01960076
+
+ea.readcount30X.fst$mean.fst #block-jacknife estimate of s.e.
+#-0.02009452
+ea.readcount30X.fst$se.fst #s.e. of the genome-wide Fst estimate
+#2.90547e-05
+ea.readcount30X.fst$mean.fst+c(-1.96,1.96)*ea.readcount30X.fst$se.fst
+# -0.02015146 -0.02003757
+
+
+#Computing multi-locus FST to scan the genome over sliding-windows of SNPs
+
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=50)
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=100)
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=10)
+#we have 42K scaffolds so loosing a lot of data with sliding window size of 50-100 chrom?
+
+
+#6722 chromosomes scanned (with more than 50 SNPs)
+#Average (min-max) Window Sizes 0.3 ( 0.1 - 4.9 ) kb
+
+
+#931 chromosomes scanned (with more than 100 SNPs)
+#Average (min-max) Window Sizes 0.8 ( 0.2 - 7.4 ) kb
+
+
+#31251 chromosomes scanned (with more than 10 SNPs)
+#Average (min-max) Window Sizes 0 ( 0 - 6.9 ) kb
+
+#I will just play around with 100 as I dont really understand
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=100)
+
+plot(ea.readcount30X.fst$sliding.windows.fst$CumulatedPosition/1e6,
+     ea.readcount30X.fst$sliding.windows.fst$MultiLocusFst,
+     xlab="Cumulated Position (in Mb)",ylab="Muli-locus Fst")
+     #col=as.numeric(ea.readcount30X.fst$sliding.windows.fst$Chr),pch=16) Doesnt work as we dont have chromossome numbers
+abline(h=ea.readcount30X.fst$FST,lty=2)
+
+head(ea.readcount30X.fst$sliding.windows.fst$CumulatedPosition/1e6)
+head(ea.readcount30X.fst$sliding.windows.fst$MultiLocusFst)
+head(ea.readcount30X.fst$sliding.windows.fst$Chr)
+
+#Manhattan plot of the multi-locus FST computed over sliding-windows of 50 SNPs on the PoolSeq example data. The dashed line indicates the estimated overall genome-wide FST . The 20 simulated
+#chromosomes are represented by alternate colors
+
+
+#pairwise FST
+
+ea.pairwisefst<-compute.pairwiseFST(ea.readcount30X,verbose=FALSE)
+#heatmap
+#Heatmap representing the pairwise-population FST matrix of the 14 populations of the 30XPool-Seq example data set
+heatmap(ea.pairwisefst)
+#it moves pops which are more similar to each other 
+
+#Block-Jackknife estimation of FST standard-error and visualisation of confidence intervals
+ea.pairwisefst@PairwiseFSTmatrix
+plot(ea.pairwisefst)
+```
+
+
+
+
+
+
+# tips 
+##install local CRAN miror repository
+
+wget
+local_cran_mirror <- "file:///gxfs_home/geomar/smomw573/R/CRAN_mirrors.csv"
+options(repos = structure(c(CRAN = local_cran_mirror)))
+# Load the CRAN_mirrors.csv file
+file_path <- "/gxfs_home/geomar/smomw573/R/CRAN_mirrors.csv"
+mirrors_data <- read.csv(file_path)
+
+# Extract the URL column from the data
+mirror_urls <- mirrors_data$URL
+
+# Set the repos option using the extracted URLs
+options(repos = structure(c(CRAN = mirror_urls)))
+
+# Now you can install packages from the specified CRAN mirrors
+install.packages("dplyr")
+#something went wrong so I can just use this function
+install.packages("tidyr",        # Using repos argument
+                 repos = "https://cran.uni-muenster.de/")
+
+#####

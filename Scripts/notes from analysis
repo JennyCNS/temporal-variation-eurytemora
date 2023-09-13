@@ -1,0 +1,212 @@
+notes from analysis
+
+#PoolSNP filtering
+
+We have attempted running PoolSNP with different filters. I have deleted the VCF files, but here are the headers with the filtering parameters and the number of SNPs
+
+#first job trial
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=17
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100G
+#SBATCH --qos=long
+#SBATCH --time=40:00:00
+#SBATCH --job-name=final-PoolSNP
+#SBATCH --output=poolsnptrial-allsamplesmincount10final.out
+#SBATCH --error=poolsnptrial-allsamplesmincount10final.err
+
+bash /gxfs_home/geomar/smomw573/software/PoolSNP/PoolSNP.sh \
+mpileup=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/all.mpileup  \
+output=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/final-maf0.01-mincov50-mincount10-allsites0-allsamples_b \
+reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+names=EA_2007_T1,EA_2007_T2,EA_2009_T1,EA_2009_T2,EA_2009_T3,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2011_T3,EA_2015_T1,EA_2015_T2,EA_2015_T3,EA_2015_T4,EA_2022_T1,EA_2022_T2,EA_2022_T3,EA_2022_T4 \
+min-cov=50 \
+max-cov=0.95 \
+min-count=10 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=17 \
+badsites=1 \
+allsites=0
+
+
+#output
+##fileformat=VCFv4.2
+##fileDate=24/07/23
+##Source=PoolSnp-1.05
+##Parameters=<ID=MinCov,Number=50,Type=Integer,Description="Minimum coverage per sample">
+##Parameters=<ID=MaxCov,Number=0.95,Type=Integer,Description="Maximum chromosome- and sample-specific maximum coverage; Either a precomuted file or the maximum percentile cutoff, eg. 0.95 to consider only reads within the 95% coverage percentile">
+##Parameters=<ID=MinCount,Number=10,Type=Integer,Description="Minimum alternative allele count across all samples pooled">
+##Parameters=<ID=MinFreq,Number=0.01,Type=Float,Description="Minimum alternative allele frequency across all samples pooled">
+##Parameters=<ID=MaximumMissingFraction,Number=0.1,Type=Float,Description="Maximum fraction of samples allowed that are not fullfilling all parameters">
+##Parameters=<ID=BaseQual,Number=15,Type=Integer,Description="Minimum PHRED scaled base quality">
+##Reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta
+
+#SNPs
+21779
+#number of snps was extremely low and frequency per sample was also very low, therefore we decided to exclude the three samples, 2007 and one 2011 T3 from further analysis PPT presentation in output folder
+#I tried excluding only 2011 T3 
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=17
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100G
+#SBATCH --qos=long
+#SBATCH --time=40:00:00
+#SBATCH --job-name=final-PoolSNP
+#SBATCH --output=poolsnptrial-allsamplesmincount10final.out
+#SBATCH --error=poolsnptrial-allsamplesmincount10final.err
+
+bash /gxfs_home/geomar/smomw573/software/PoolSNP/PoolSNP.sh \
+mpileup=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/all.mpileup-excluding2011T3 \
+output=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/final-maf0.01-mincov50-mincount10-allsites0-exc2011t3 \
+reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+names=EA_2007_T1,EA_2007_T2,EA_2009_T1,EA_2009_T2,EA_2009_T3,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2015_T1,EA_2015_T2,EA_2015_T3,EA_2015_T4,EA
+_2022_T1,EA_2022_T2,EA_2022_T3,EA_2022_T4 \
+min-cov=50 \
+max-cov=0.95 \
+min-count=10 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=17 \
+badsites=1 \
+allsites=0
+
+
+#that was the one with the highest missing data and got 
+23984 SNPs
+
+
+
+#second job excluding all bad samples 
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=14
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100G
+#SBATCH --qos=long
+#SBATCH --time=150:00:00
+#SBATCH --job-name=PoolSNP-trial-excludedsamples
+#SBATCH --output=poolsnptrial-exlc2007-11-mincount10.out
+#SBATCH --error=poolsnptrial-exlc2007-11-mincount10.err
+
+bash /gxfs_home/geomar/smomw573/software/PoolSNP/PoolSNP.sh \
+mpileup=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/variants/all.mpileup-excluding20072011  \
+output=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/final-maf0.01-mincov50-mincount10-allsites0-excluding20072011 \
+reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+names=EA_2009_T1,EA_2009_T2,EA_2009_T3,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2015_T1,EA_2015_T2,EA_2015_T3,EA_2015_T4,EA_2022_T1,EA_2022_T2,EA
+_2022_T3,EA_2022_T4 \
+min-cov=50 \
+max-cov=0.95 \
+min-count=10 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=14 \
+badsites=1 \
+allsites=0
+
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=14
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100G
+#SBATCH --qos=long
+#SBATCH --time=150:00:00
+#SBATCH --job-name=PoolSNP-trial-excludedsamples
+#SBATCH --output=poolsnptrial-exlc2007-11-mincount5.out
+#SBATCH --error=poolsnptrial-exlc2007-11-mincount5.err
+
+bash /gxfs_home/geomar/smomw573/software/PoolSNP/PoolSNP.sh \
+mpileup=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/variants/all.mpileup-excluding20072011  \
+output=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/final-maf0.01-mincov50-mincount5-allsites0-excluding20072011 \
+reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+names=EA_2009_T1,EA_2009_T2,EA_2009_T3,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2015_T1,EA_2015_T2,EA_2015_T3,EA_2015_T4,EA_2022_T1,EA_2022_T2,EA_2022_T3,EA_2022_T4 \
+min-cov=50 \
+max-cov=0.95 \
+min-count=5 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=14 \
+badsites=1 \
+allsites=0
+
+#2424258 SNPS
+
+so we decided to keep the file excluding the samples of 2007 and 2011 T3 for further analyisis but rerun the PoolSNP
+
+
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/software/PoolSNP
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=5
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=10:00:00
+#SBATCH --job-name=biallelic
+#SBATCH --output=biallelic.out
+#SBATCH --error=biallelic.err
+module load vcftools/0.1.14
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP/final-maf0.01-mincov50-mincount10-allsites0-excluding20072011.vcf.gz 
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
+
+
+vcftools --gzvcf $VCF --min-alleles 2 --max-alleles 2 --recode --out $OUT/finalfile_output_biallelic
+
+
+
+
+#####
+
+
+module load python/3.8.4
+
+#run python script on vcf with filtered biallelic positions
+
+python3 fix.py
+
+
+zgrep "^#" finalfile_output_biallelic.recode.vcf.gz > header.txt
+
+#noheader2 is the output of the python script
+cat header.txt noheader2.txt > finalfile.vcf
+
+#tabix the vcf
+bgzip finalfile.vcf.gz
+tabix -p vcf finalfile.vcf.gz
+
+
+
+
+#not needed but for future
+#make bed from final vcf
+module load bcftools/1.10.2
+bcftools view -v snps input.vcf.gz -o output_snps.vcf.gz
+bcftools query -f '%CHROM\t%POS0\t%POS1\n' finalfile.vcf > finalfile.bed
