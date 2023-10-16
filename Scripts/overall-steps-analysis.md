@@ -83,7 +83,7 @@ allsites=0
 # Now we checked the quality of the vcf file using all samples 
 
 # explore data statistics with plink
-
+### this is wrong so please IGNORE THIS OUPUT
 ```bash script 
 conda install -c bioconda plink
 
@@ -339,10 +339,26 @@ samtools mpileup -q 15 -Q 0 -d 8000 -R -A -B \
         -b $WORK/seasonal_adaptation/analysis/variants/bamfiles-excluding2007-2011.txt \
         -o all.mpileup-excluding20072011
 ```
+```bash
 
 # rerun PoolSNP with same parameters but trying min-count10 and 5
-
-Check number of SNPs in each vcf output file
+# kept the min count 10
+bash /gxfs_home/geomar/smomw573/software/PoolSNP/PoolSNP.sh \
+mpileup=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/all.mpileup-excluding20072011  \
+output=/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/PoolSNP/out-maf0.01-mincov50-mincount10-allsites-excluding20072011 \
+reference=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+names=EA_2009_T1,EA_2009_T2,EA_2009_T3,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2015_T1,EA_2015_T2,EA_2015_T3,EA_2015_T4,EA_2022_T1,EA_2022_T2,EA_2022_T3,EA_2022_T4 \
+min-cov=50 \
+max-cov=0.95 \
+min-count=10 \
+min-freq=0.01 \
+miss-frac=0.1 \
+base-quality 15 \
+jobs=17 \
+badsites=1 \
+allsites=1
+```
+# Check number of SNPs in each vcf output file
 
 ```bash
 cd /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/PoolSNP
@@ -361,8 +377,9 @@ zgrep -v "^#" final-maf0.01-mincov50-mincount5-allsites0-excluding20072011.vcf.g
 #SNPs 2424280
 
 ```
+# ran script fix_vcf.py to fix it for grenedalf
 
-# remove biallelic snps
+# keep biallelic snps
 
 ```bash
 #!/bin/bash
@@ -448,6 +465,8 @@ vcftools --vcf finalfile.nomissingdata.recode.vcf --site-mean-depth --out finalf
 
 module load R/4.1.1
 ```
+# Fix vcf for coverage depth
+# select SNPs which only have 3x average coverage
 
 ```r
 install.packages("data.table")
@@ -921,11 +940,17 @@ $GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method un
 $GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method unbiased-hudson --pool-sizes 50 --window-type sliding --window-sliding-width 10000 --file-suffix all-parwise-10000  --out-dir $OUTPUT/grenedalfst.log
 
 #single snp by snp FST calculation
+#genomic fst
 
 $GRENEDALF fst --vcf-path $VCF --reference-genome-fasta-file $GENOME --method unbiased-hudson --pool-sizes 50 --window-type single --file-suffix single-snps2 --out-dir $OUTPUT/grenedalfst.log
 
 #sort vcf
+#we now have a new vcf file that has the SNPs alligned to the newer version of the genome
+#!!!!!!!!!!!!!!!!!!!
+############
+#rerun some analyisis
 
+##not needed cause Reid had already sorted it
 module load bcftools/1.10.2
 
 GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/affinis.Atlantic.long_read_draft.Mar22.fasta \
@@ -934,6 +959,7 @@ OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/fin
 
 
 bcftools sort -Ov -o $OUTPUT -T tmp_dir -m 1000M $VCF
+##not needed cause Reid had already sorted it
 
 GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
 VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_sorted.vcf.gz \
@@ -1827,12 +1853,241 @@ heatmap(ea.pairwisefst)
 #Block-Jackknife estimation of FST standard-error and visualisation of confidence intervals
 ea.pairwisefst@PairwiseFSTmatrix
 plot(ea.pairwisefst)
+
+#the fst plot with the new fst dataset fixed for the new genome is on a different file - plot-single-fst.md in my computer
 ```
 
+## Trial Fst Boxplot and T test
+
+```bash
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=32000 --time=06:00:00 /bin/bash
+module load R/4.1.1
+module load gcc/10.2.0
+module load icu4c/67.1
+
+R
+```
+
+```R
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+
+fst <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/fstsingle-snps-newvcf-queue.csv", header = TRUE, na.strings = "")
+#negative values to zeros
+
+fst <- fst %>% mutate_all(function(x) ifelse(x < 0, 0, x))
 
 
+fst2009a <- fst[,c("chrom", "EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T3")]
+fst2009b <- fst[,c("chrom", "EA_2009_T1.EA_2009_T2", "EA_2009_T1.EA_2009_T4")]
+fst2009c <- fst[,c("chrom", "EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4")]
+fst2009all <- fst[,c("chrom", "EA_2009_T1.EA_2009_T2","EA_2009_T1.EA_2009_T3", "EA_2009_T1.EA_2009_T4")]
+
+fst2011 <- fst[,c("chrom", "EA_2011_T1.EA_2011_T2")]
+
+fst2015a <- fst[,c("chrom", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3")]
+fst2015b <- fst[,c("chrom", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T4")]
+fst2015c <- fst[,c("chrom", "EA_2015_T1.EA_2015_T3", "EA_2015_T1.EA_2015_T4")]
+fst2015all <- fst[,c("chrom", "EA_2015_T1.EA_2015_T2", "EA_2015_T1.EA_2015_T3", "EA_2015_T1.EA_2015_T4")]
+
+fst2022a <- fst[,c("chrom", "EA_2022_T1.EA_2022_T2","EA_2022_T1.EA_2022_T3")]
+fst2022b <- fst[,c("chrom", "EA_2022_T1.EA_2022_T2", "EA_2022_T1.EA_2022_T4")]
+fst2022c <- fst[,c("chrom", "EA_2022_T1.EA_2022_T3", "EA_2022_T1.EA_2022_T4")]
+fst2022all <- fst[,c("chrom", "EA_2022_T1.EA_2022_T2", "EA_2022_T1.EA_2022_T3", "EA_2022_T1.EA_2022_T4")]
+
+#prep data for t-test
+#2009a 
+t2009a <- tidyr::gather(fst2009a, "pairwise", "fst", 2:3)
+t2009$pairwise <- as.factor(t2009$pairwise)
+t2009a <- na.omit(t2009a)
+
+#2009b
+t2009b <- tidyr::gather(fst2009b, "pairwise", "fst", 2:3)
+t2009b$pairwise <- as.factor(t2009b$pairwise)
+t2009b <- na.omit(t2009b)
+
+#2009c
+t2009c <- tidyr::gather(fst2009c, "pairwise", "fst", 2:3)
+t2009c$pairwise <- as.factor(t2009c$pairwise)
+t2009c <- na.omit(t2009c)
+
+t2009all <- tidyr::gather(fst2009all, "pairwise", "fst", 2:4)
+
+#t2011 is okay and cant to the t-test
+
+t2011all <- tidyr::gather(fst2011, "pairwise", "fst", 2)
+
+#2015
+t2015a <- tidyr::gather(fst2015a, "pairwise", "fst", 2:3)
+t2015a$pairwise <- as.factor(t2015a$pairwise)
+t2015a <- na.omit(t2015a)
+
+t2015b <- tidyr::gather(fst2015b, "pairwise", "fst", 2:3)
+t2015b$pairwise <- as.factor(t2015b$pairwise)
+t2015b <- na.omit(t2015b)
+
+t2015c <- tidyr::gather(fst2015c, "pairwise", "fst", 2:3)
+t2015c$pairwise <- as.factor(t2015c$pairwise)
+t2015c <- na.omit(t2015c)
+
+t2015all <- tidyr::gather(fst2015all, "pairwise", "fst", 2:4)
+
+#2022
+t2022a <- tidyr::gather(fst2022a, "pairwise", "fst", 2:3)
+t2022a$pairwise <- as.factor(t2022a$pairwise)
+t2022a <- na.omit(t2022a)
+
+t2022b <- tidyr::gather(fst2022b, "pairwise", "fst", 2:3)
+t2022b$pairwise <- as.factor(t2022b$pairwise)
+t2022b <- na.omit(t2022b)
+
+t2022c <- tidyr::gather(fst2022c, "pairwise", "fst", 2:3)
+t2022c$pairwise <- as.factor(t2022c$pairwise)
+t2022c <- na.omit(t2022c)
+
+t2022all <- tidyr::gather(fst2022all, "pairwise", "fst", 2:4)
+
+#check if all pairwise comparisons are there
+unique(new_dataset$pairwise)
+
+#t-test for each of the pairwise comparisons and years
+
+#2009a
+t.test(t2009a$fst ~ t2009a$pairwise)
+
+#        Welch Two Sample t-test
+
+#data:  t2009a$fst by t2009a$pairwise
+#t = 2.9031, df = 2360868, p-value = 0.003695
+#alternative hypothesis: true difference in means between group EA_2009_T1.EA_2009_T2 and group EA_2009_T1.EA_2009_T3 is not equal to 0
+#95 percent confidence interval:
+# 1.089348e-05 5.617110e-05
+#sample estimates:
+#mean in group EA_2009_T1.EA_2009_T2 mean in group EA_2009_T1.EA_2009_T3
+#                        0.002211764                         0.002178232
+
+#2009b
+t.test(t2009b$fst ~ t2009b$pairwise)
+
+#        Welch Two Sample t-test
+
+#data:  t2009b$fst by t2009b$pairwise
+#t = 19.21, df = 2370704, p-value < 2.2e-16
+#alternative hypothesis: true difference in means between group EA_2009_T1.EA_2009_T2 and group EA_2009_T1.EA_2009_T4 is not equal to 0
+#95 percent confidence interval:
+# 0.0001926584 0.0002364383
+#sample estimates:
+#mean in group EA_2009_T1.EA_2009_T2 mean in group EA_2009_T1.EA_2009_T4
+#                        0.002211764                         0.001997216
 
 
+t.test(t2009c$fst ~ t2009c$pairwise)
+
+#2015a
+#2015a
+t.test(t2015a$fst ~ t2015a$pairwise)
+
+#        Welch Two Sample t-test
+
+#data:  t2015a$fst by t2015a$pairwise
+#t = -103.22, df = 1692658, p-value < 2.2e-16
+#alternative hypothesis: true difference in means between group EA_2015_T1.EA_2015_T2 and group EA_2015_T1.EA_2015_T3 is not equal to 0
+#95 percent confidence interval:
+# -0.0007057102 -0.0006794093
+#sample estimates:
+#mean in group EA_2015_T1.EA_2015_T2 mean in group EA_2015_T1.EA_2015_T3
+#                       0.0005338422                        0.0012264019
+
+
+#2015b
+t.test(t2015b$fst ~ t2015b$pairwise)
+
+#        Welch Two Sample t-test
+
+#data:  t2015b$fst by t2015b$pairwise
+#t = 39.981, df = 2287976, p-value < 2.2e-16
+#alternative hypothesis: true difference in means between group EA_2015_T1.EA_2015_T2 and group EA_2015_T1.EA_2015_T4 is not equal to 0
+#95 percent confidence interval:
+# 0.0001376141 0.0001518021
+#sample estimates:
+#mean in group EA_2015_T1.EA_2015_T2 mean in group EA_2015_T1.EA_2015_T4
+#                       0.0005338422                        0.0003891341
+
+t.test(t2015c$fst ~ t2015c$pairwise)
+
+#2022a
+t.test(t2022a$fst ~ t2022a$pairwise)
+
+#        Welch Two Sample t-test
+
+
+#t = 10.641, df = 2394592, p-value < 2.2e-16
+#alternative hypothesis: true difference in means between group EA_2022_T1.EA_2022_T2 and group EA_2022_T1.EA_2022_T3 is not equal to 0
+#95 percent confidence interval:
+# 3.986161e-05 5.786058e-05
+#sample estimates:
+#mean in group EA_2022_T1.EA_2022_T2 mean in group EA_2022_T1.EA_2022_T3
+#                       0.0006455680                        0.0005967069
+
+
+#2022b
+t.test(t2022b$fst ~ t2022b$pairwise)
+
+#        Welch Two Sample t-test
+
+#data:  t2022b$fst by t2022b$pairwise
+#t = 27.349, df = 2367138, p-value < 2.2e-16
+#alternative hypothesis: true difference in means between group EA_2022_T1.EA_2022_T2 and group EA_2022_T1.EA_2022_T4 is not equal to 0
+#95 percent confidence interval:
+# 0.0001121237 0.0001294348
+#sample estimates:
+#mean in group EA_2022_T1.EA_2022_T2 mean in group EA_2022_T1.EA_2022_T4
+#                       0.0006507826                        0.0005300033
+
+t.test(t2022c$fst ~ t2022c$pairwise)
+
+
+#fst_subset2<- fst2[, c( "EA_2009_T2.EA_2009_T3", "EA_2009_T2.EA_2009_T4","EA_2009_T3.EA_2009_T4",  
+#                        " EA_2015_T2.EA_2015_T3", "EA_2015_T2.EA_2015_T4", "EA_2015_T3.EA_2015_T4", 
+#                        "EA_2022_T2.EA_2022_T3", "EA_2022_T2.EA_2022_T4", "EA_2022_T3.EA_2022_T4")]
+
+#boxplots
+
+a <- ggplot(t2009all, aes(x=pairwise, y=fst)) + 
+  geom_boxplot(notch=TRUE, outlier.colour="#D3DDDC", outlier.shape=8,
+                outlier.size=2) + 
+  coord_flip() +
+    theme_bw()
+#ggsave("fst2009comparisons.pdf", width = 7, height = 7, units =c("cm"), dpi =3000)
+
+b <- ggplot(t2015all, aes(x=pairwise, y=fst)) + 
+  geom_boxplot(notch=TRUE, outlier.colour="#F2AD00", outlier.shape=8,
+                outlier.size=2) + 
+  coord_flip() +
+    theme_bw()
+#ggsave("fst2015comparisons.pdf", width = 7, height = 7, units =c("cm"), dpi =3000)
+
+c <- ggplot(t2022all, aes(x=pairwise, y=fst)) + 
+  geom_boxplot(notch=TRUE, outlier.colour="#00A08A", outlier.shape=8,outlier.size=2) + 
+  coord_flip() +
+    theme_bw()
+#ggsave("fst2022comparisons.pdf", width = 7, height = 7, units =c("cm"), dpi =3000)
+
+d<- ggplot(t2011all, aes(x=pairwise, y=fst)) + 
+  geom_boxplot(notch=TRUE, outlier.colour="#6699CC", outlier.shape=8, outlier.size=2) + 
+  coord_flip() +
+    theme_bw()
+
+
+#merge 4 plots
+figure <- ggarrange(a, d, c, b,
+                    labels = c("2009", "2011", "2015", "2022"),
+                    ncol = 1, nrow = 4)
+figure
+ggsave("fst-allyearpairwisecomparisons.jpeg", width = 16, height = 20, units =c("cm"))
+
+```
 
 # tips 
 ##install local CRAN miror repository
@@ -1857,3 +2112,643 @@ install.packages("tidyr",        # Using repos argument
                  repos = "https://cran.uni-muenster.de/")
 
 #####
+
+
+######
+
+# Generate new Freq estimation using the final vcf file produced by Reid
+
+# generate individual frequencies grenedalf
+
+```bash
+module load htslib/1.10.2  bzip2/1.0.8  
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/affinis.Atlantic.long_read_draft.Mar22.fasta \
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf.gz \
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/freq-finalvcf/
+
+$GRENEDALF frequency --vcf-path $VCF --allow-file-overwriting --write-sample-alt-freq --file-suffix sample-frequencies --out-dir $OUTPUT/grenedalftrial.log
+
+#need to fix the new vcf
+#this did not work so there is something going on on the vcf but we dont care
+
+grep "^##" final_20230810.vcf > final_20230810.vcf.header.txt
+head final_20230810.vcf.header.txt
+grep -v "^##" final_20230810.vcf > final_20230810.vcf.body.txt
+head final_20230810.vcf.body.txt
+awk '!/^#/ { print NF; exit }' final_20230810.vcf.body.txt
+awk 'BEGIN{OFS="\t"} {temp=$4; $4=$5; $5=temp; print}' final_20230810.vcf.body.txt > final_20230810.vcf.body.sorted.txt
+head final_20230810.vcf.header.txt
+nano final_20230810.vcf.body.sorted.txt
+#change alt ref names
+cat final_20230810.vcf.header.txt final_20230810.vcf.body.sorted.txt > final_20230810.fixed.vcf
+head -n 20 final_20230810.fixed.vcf
+```
+# create environment with the three datasets
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+
+freq <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/grenedalf-freq/vcf-maf0.01-misfrac0.1-maxcov95/grenedalfst.log/freq-finalvcf/frequencysample-frequencies.csv", header=T)
+
+sites <- freq[,c(1,2)]
+afmat <- freq[,c(-1:-4)]
+afmat <- as.matrix(afmat)
+head(afmat)
+samps <- read.table("samples.txt", header = TRUE, sep = "\t")
+objects <- c("sites", "afmat", "samps")
+save(list = "objects", file = "HAFs.Rdata")
+```
+```bash
+# everything has been transfered to  ~/work/seasonal_adaptation/analysis/GLM
+# I will now run the GLM from there
+
+#extract depth information from mpileup file
+module load bcftools/1.10.2
+bcftools depth -a -o depth.txt /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/all.mpileup-excluding20072011
+
+
+Rscript calc_GLM.R /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/HAFs.Rdata --effectiveCov 200 -o /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/output_GLM
+
+
+#errors to fix
+either --readDepth or --effectiveCov must be supplied.
+***EXITING***
+
+loading HAFs
+Error in `$<-.data.frame`(`*tmp*`, cage, value = integer(0)) :
+  replacement has 0 rows, data has 14
+Calls: $<- -> $<-.data.frame
+Execution halted
+(base) [smomw573@nes
+
+
+```
+
+# re-calculate allele freq for the new vcf file
+
+```bash 
+
+library(tidyr)
+
+module load htslib/1.10.2  bzip2/1.0.8  
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf.gz
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta \
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM
+
+$GRENEDALF frequency --vcf-path $VCF  --write-sample-alt-freq  --separator-char tab --file-suffix alt-new-vcf --out-dir $OUTPUT
+$GRENEDALF frequency --vcf-path $VCF  --write-sample-coverage --separator-char tab --file-suffix cov-new-vcf --out-dir $OUTPUT
+
+#output freq-new-vcf.csv - not a csv
+
+#create file in the rigth format in R
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=20000 --time=07:00:00 /bin/bash
+
+module load R/4.1.1
+module load gcc/10.2.0
+R
+```
+
+#GLM
+
+
+#run Rscript
+
+```R
+library(tidyr)
+data <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/frequencyalt-new-vcf.txt", header = TRUE, sep = "\t")
+
+
+#fixing data#
+
+# Remove ".FREQ" from the column names
+# Identify the columns containing ".COV" in their names
+cov_columns <- grep("EA_\\d+_T\\d+\\.FREQ", names(data))
+new_colnames <- colnames(data)
+new_colnames[cov_columns] <- gsub("\\.FREQ", "", new_colnames[cov_columns])
+colnames(data) <- new_colnames
+
+# Create a data frame with only the "CHROM," "POS," "REF," "ALT," and renamed ".COV" columns
+data_FREQ <- data[, c(5:18)]
+write.table(data_FREQ, file = "freq_new_vcf.txt", quote = FALSE, sep = "\t")
+
+#cov data
+data <- read.table("frequencycov-new-vcf.txt", header = TRUE, sep = "\t")
+
+# Remove ".COV" from the column names
+# Identify the columns containing ".COV" in their names
+cov_columns <- grep("EA_\\d+_T\\d+\\.COV", names(data))
+new_colnames <- colnames(data)
+new_colnames[cov_columns] <- gsub("\\.COV", "", new_colnames[cov_columns])
+colnames(data) <- new_colnames
+
+# Create a data frame with only the "CHROM," "POS," "REF," "ALT," and renamed ".COV" columns
+data_FREQ <- data[, c(5:18)]
+
+write.table(data_FREQ, file = "cov_new_vcf.txt", quote = FALSE, sep = "\t")
+```
+# Bash GLM
+
+```bash 
+sbatch run-glm.sh 
+
+#!/bin/bash
+#SBATCH -D .
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=20G
+#SBATCH --time=48:00:00
+#SBATCH --job-name=glm
+#SBATCH --output=glm.out
+#SBATCH --error=glm.err
+
+module load R/4.1.1
+module load gcc/10.2.0
+
+Rscript glm-r.R
+
+```
+
+```R
+####GLM#####
+
+####GLM script trial 1####
+
+cov <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov_new_vcf.txt", header = TRUE, sep = "\t")
+freq <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header = TRUE, sep = "\t")
+pos <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chrom-poly-position-seasonal-data.txt", header = FALSE, sep = "\t")
+popinfo <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/popinfo.txt", header = TRUE, sep = "\t")
+
+
+#subset populations
+
+popnames <- grep("EA_2009_T1|EA_2009_T2|EA_2011_T1|EA_2011_T2|EA_2015_T1|EA_2015_T4|EA_2022_T1|EA_2022_T4", popinfo$pop)
+
+#subset 
+cov_glm <- cov[,popnames]
+freq_glm <- freq[,popnames]
+popinfo_glm <- popinfo[popnames,]
+popinfo_glm$time <- c("E","L")
+
+#transform into matrix
+freq_matrix <- as.matrix(freq_glm)
+cov_matrix <- as.matrix(cov_glm)
+
+#fix cov_matrix with Nc
+
+# 50 so 2N = 100
+#make new column Nc for the weight
+#Nc = (1/N + 1/R) - 1
+
+dp <- (1/100 + 1/cov_matrix)^-1
+popinfo_glm$Y <- as.factor(popinfo_glm$Y)
+#in case we want unordered factors
+#popinfo_glm$Y <- factor(popinfo_glm$Y, ordered = FALSE)
+#GLM loop#
+# Open the file for writing (creates a new file if it doesn't exist)
+#fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output.txt", "w")
+
+# Open the file for writing (creates a new file if it doesn't exist)
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-time-factor-unordered.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-year-factor-unordered.txt", "w")
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  # Fit the GLM model for the current line
+  out <- summary(glm(freq_matrix[i, ] ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]))
+  #glm_model <- summary(glm(freq_matrix[1, ] ~ popinfo_popnames$time, family = binomial, weights = dp[1, ]))
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+  
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+
+
+#if I would like to see the global effect of year that would be the code
+#glm <- glm(line ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]) 
+#drop1(glm, test = "F")
+
+# Close the file
+close(fileout)
+
+#with year as factor
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-time-factor.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-year-factor.txt", "w")
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  line <- freq_matrix[i, ]
+  
+  # Fit the GLM model for the current line
+  out <- summary(glm(line ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]))
+  #glm_model <- summary(glm(freq_matrix[1, ] ~ popinfo_popnames$time, family = binomial, weights = dp[1, ]))
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+  
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+
+#with year as unordered factor
+
+#with year as factor
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-time-factor-un.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-year-factor-un.txt", "w")
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  line <- freq_matrix[i, ]
+  
+  # Fit the GLM model for the current line
+  out <- summary(glm(line ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]))
+  #glm_model <- summary(glm(freq_matrix[1, ] ~ popinfo_popnames$time, family = binomial, weights = dp[1, ]))
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+  
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+
+# Close the file
+close(fileout)
+
+```
+# fix output files to get qqplots
+
+```b
+#file 1
+#########
+awk '{print $3}' seasonal-glm-output.txt | sort > seasonal-glm-output-*.txt
+awk -F'\t' '$1 <= 0.05 { count++ } seasonal-glm-output-p-sorted.txt
+#1641
+
+awk '{print $1"_"$2}' chrom-poly-position-seasonal-data.txt > joint.txt 
+awk '{print $3'} seasonal-glm-output-time.txt > p-values-time.txt 
+paste chrom-poly-position-seasonal-data.txt joint.txt p-values-time.txt > full-table-ptime.txt
+
+# add header
+echo "chrom pos chrompos p" | cat - full-table-ptime.txt > temp && mv temp full-table-ptime.txt
+echo "chrom  pos chrompos p" | cat - full-table-pyear.txt > temp && mv temp full-table-pyear.txt
+
+awk -F'\t' '$4 <= 0.05 { count++ } END { print count }' full-table-ptime.txt
+#1684
+awk -F'\t' '$4 <= 0.05 { count++ } END { print count }' full-table-pyear.txt
+#3730
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-ptime.txt > significant-snps-time.txt
+awk -F'\t' '$4 <= 0.05 { print }' full-table-pyear.txt > significant-snps-year.txt
+
+#####
+
+
+awk '{print $3'} seasonal-glm-output-time-factor.txt > p-values-time.txt 
+paste chrom-poly-position-seasonal-data.txt joint.txt p-values-time.txt > full-table-ptime-factor.txt
+
+awk '{print $3'} seasonal-glm-output-year-factor.txt > p-values-season.txt 
+paste chrom-poly-position-seasonal-data.txt joint.txt p-values-year.txt > full-table-pyear-factor.txt
+
+# add header
+echo "chrom pos chrompos p" | cat - full-table-ptime-factor.txt > temp && mv temp full-table-ptime-factor.txt
+echo "chrom  pos chrompos p" | cat - full-table-pyear-factor.txt > temp && mv temp full-table-pyear-factor.txt
+
+awk -F'\t' '$4 <= 0.05 { count++ } END { print count }' full-table-ptime-factor.txt
+#1684
+awk -F'\t' '$4 <= 0.05 { count++ } END { print count }' full-table-pyear-factor.txt
+#3730
+
+
+#########
+#file2
+
+awk '{print $3}' seasonal-glm-output-time-factor-unordered-noweights.txt > time-noweights.txt 
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' time-noweights.txt
+#1
+paste chrom-poly-position-seasonal-data.txt joint.txt time-noweights.txt> full-table-time-noweights.txt
+# add header
+echo "chrom pos chrompos p" | cat - full-table-time-noweights.txt > temp && mv temp full-table-time-noweights.txt
+awk -F'\t' '$4 <= 0.05 { count++ } END { print count }' full-table-time-noweights.txt
+#1
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-ptime.txt > significant-snps-time.txt
+awk -F'\t' '$4 <= 0.05 { print }' full-table-pyear.txt > significant-snps-year.txt
+
+
+#########
+#file3
+
+
+awk '{print $3}' seasonal-glm-output-time-factor-unordered.txt > time-unordered.txt 
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' time-unordered.txt
+#1648
+paste chrom-poly-position-seasonal-data.txt joint.txt time-unordered.txt > full-table-time-unordered.txt
+
+# add header
+echo "chrom pos chrompos p" | cat - full-table-time-unordered.txt > temp && mv temp full-table-time-unordered.txt
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-time-unordered.txt> significant-full-table-time-unordered.txt
+
+#########
+#file4
+
+
+awk '{print $3}' seasonal-glm-output-time-uncorrected-coverage.txt > time-covnonc.txt 
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' time-covnonc.txt 
+#67292
+paste chrom-poly-position-seasonal-data.txt joint.txt time-covnonc.txt > full-table-time-covnonc.txt
+
+
+
+
+```
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+#qqplots
+
+#time as factor
+
+par(mfrow = c(2, 2))
+
+time <- read.table("p-values-time.txt", header = FALSE)
+
+n <- length(time$V1)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(time$V1), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "ordered factor (OF)")
+# Add a reference line for a perfect uniform distribution
+abline(0, 1, col = "red")
+#year <- read.table("p-values-year.txt", header = FALSE)
+
+
+#file2
+#time unordered factor
+time2 <- read.table("time-unordered.txt", header = FALSE)
+n <- length(time2$V1)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(time2$V1), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "unordered factor (UF)")
+# Add a reference line for a perfect uniform distribution
+abline(0, 1, col = "red")
+
+
+#file3
+#time no weights unordered factor
+time3 <- read.table("time-noweights.txt", header = FALSE)
+n <- length(time3$V1)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(time3$V1), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "UF no weights")
+# Add a reference line for a perfect uniform distribution
+abline(0, 1, col = "red")
+
+#file4
+#time no weights unordered factor with uncorrected cov
+time4 <- read.table("time-covnonc.txt", header = FALSE)
+n <- length(time4$V1)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(time4$V1), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "UF uncorrected cov")
+# Add a reference line for a perfect uniform distribution
+abline(0, 1, col = "red")
+```
+## 05-10-2023 -> based on the qqplot output, we decided to check what the variables that have a significant p value are doing.
+## first I will check the changes in AF of these snps in each population, and second I will check if the ones who have a significant p value actually have a high coverage (mean cov from the matrix or pull it from grenedalf)
+
+# 13-10-2023 -> okay, no we decided we want to have year as an unordered factor, and I ran the glm model with this, the output was the file seasonal-glm-output-time-factor-unordered.txt with 1202736 SNPs (what is what we expected) and the same file with p-values for years seasonal-glm-output-year-factor-unordered.txt
+# now I will create the final file so we can check which SNPs are doing what
+
+```bash
+
+#file2
+
+awk '{print $3}' seasonal-glm-output-time-factor-unordered.txt > final-glm-time.txt
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' final-glm-time.txt
+#1684
+paste chrom-poly-position-seasonal-data.txt joint.txt final-glm-time.txt> full-table-final-glm-time.txt
+# add header
+echo "chrohem pos chrompos p" | cat - full-table-final-glm-time.txt > temp && mv temp full-table-final-glm-time.txt
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-ptime.txt > significant-snps-time.txt
+
+awk 'NR>1' cov_new_vcf.txt > cov_no_head.txt
+paste chrom-poly-position-seasonal-data.txt cov_no_head.txt> cov_with_chrom.txt
+
+awk 'NR==FNR{a[$1$2]=$0; next} ($1$2 in a){print a[$1$2], $0}' cov_with_chrom.txt significant-snps-time.txt> cov-sig-snps.txt
+```
+# now I will plot in R the the output
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+library(tidyr)
+library(ggplot2)
+library(matrixStats)
+
+df<- read.table(file="cov-sig-snps-txt", header= F)
+df <- df[-3]
+df$chrompos <- paste(df[,V1], df[,V2])
+df$chrompos <- paste(df$V1, df$V2)
+colnames(df) <- c("chrom","pos",
+                  "2009t1","2009t2","2009t3","2009t4",
+                  "2011t1","2011t2",
+                  "2015t1","2015t2","2015t3","2015t4",
+                  "2022t1","2022t2","2022t3","2022t4",
+                  "chrompos")
+
+df <- df[, -c(1, 2)]
+df_long <- df %>%
+  gather(key = "sample", value = "coverage", -chrompos)
+
+ggplot(df_long, aes(x = chrompos, y = coverage, color = sample)) +
+  geom_point(size = 3) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  scale_x_discrete(labels = NULL) +
+  theme_minimal()
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/coverage-individual-snps.pdf", width = 8, height = 6, units = "in")
+
+#how many SNPs have the average coverage (500x)
+
+sum(df_long$coverage <= 500)
+ #21528 
+ sum(df_long$coverage >= 500)                                                  
+ #2055
+
+
+df$mean_cov <- rowMeans(df[, -15])
+df$se <- rowSds(as.matrix(df[, -15])) / sqrt(ncol(df) - 1)
+
+ggplot(df, aes(x = chrompos, y = mean_cov)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_cov - se, ymax = mean_cov + se), width = 0.2) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  scale_x_discrete(labels = NULL) +
+  theme_minimal()
+
+  #not yet
+
+df <- separate(df, chrompos, into = c("chrom", "pos"), sep = " ", remove=FALSE)
+library(dplyr)
+distinct_count <- df %>% 
+  count(chrom)
+
+                      chrom   n
+#1    Scz6wRH_101;HRSCAF=195   2
+#2      Scz6wRH_12;HRSCAF=69   1
+#3  Scz6wRH_1478;HRSCAF=1610   5
+#4  Scz6wRH_1684;HRSCAF=1838   1
+#5  Scz6wRH_1685;HRSCAF=1840 457
+#6  Scz6wRH_1688;HRSCAF=1872   2
+#7  Scz6wRH_1691;HRSCAF=1912   1
+#8  Scz6wRH_1693;HRSCAF=1917 299
+#9    Scz6wRH_185;HRSCAF=284   1
+#10     Scz6wRH_19;HRSCAF=90   3
+#11   Scz6wRH_234;HRSCAF=334   1
+#12     Scz6wRH_23;HRSCAF=98 436
+#13   Scz6wRH_267;HRSCAF=368   1
+#14   Scz6wRH_277;HRSCAF=379   2
+#15      Scz6wRH_2;HRSCAF=24 447
+#16   Scz6wRH_306;HRSCAF=408   1
+#17   Scz6wRH_345;HRSCAF=449   2
+#18   Scz6wRH_357;HRSCAF=465   1
+#19    Scz6wRH_37;HRSCAF=122   2
+#20   Scz6wRH_407;HRSCAF=518   2
+#21   Scz6wRH_430;HRSCAF=541   2
+#22    Scz6wRH_76;HRSCAF=166   3
+#23    Scz6wRH_85;HRSCAF=179   7
+#24      Scz6wRH_8;HRSCAF=60   3
+#25    Scz6wRH_98;HRSCAF=192   2
+
+#plot SNPs by chromossome
+ggplot(distinct_count, aes(x = reorder(chrom, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "SNP counts", x = "Chromosome", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/snps-by-choromosome-glm.pdf", width = 10, height = 6, units = "in")
+
+df$nchrom <- as.integer(factor(df$chrom))
+ggplot(df, aes(x = factor(chrom), y = mean_cov, color=chrom)) +
+  geom_boxplot(width = 0.5, show.legend = FALSE) +  # Adjust width as needed
+  labs(title = "Mean Coverage", x = "Chromosome", y = "Coverage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-coverage-snps-chrom.pdf", width = 8, height = 6, units = "in")
+
+
+#now I will find out which SNPs were deviating the norm in the QQplot, and see how they behave
+
+#file2
+#time unordered factor
+pvalues <- read.table("full-table-final-glm-time.txt", header = TRUE)
+n <- length(pvalues$p)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(pvalues$p), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "unordered factor (UF)")
+
+abline(0, 1, col = "red")
+
+# Create the QQ plot
+qqplot(-log10(expected_p_values), -log10(pvalues$p), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "unordered factor (UF)")
+
+# Identify SNPs with expected > 4.5 and observed > 5
+selected_snps <- pvalues$chrompos[(-log10(pvalues$p) > 5)]
+text(-log10(expected_p_values[pvalues$chrompos %in% selected_snps]), -log10(pvalues$p[pvalues$chrompos %in% selected_snps]), labels = selected_snps, pos = 1, cex = 0.7)
+# Assuming you have logged values
+logged_expected_p_values <- -log10(expected_p_values)
+logged_p_values <- -log10(pvalues$p)
+
+# Create a data frame with logged values
+logged_data <- data.frame(
+  Logged_Expected = logged_expected_p_values,
+  Logged_Observed = logged_p_values
+)
+#FIGURE THIS OUT TOMORROW!
+
+#okay now I want to plot cov in relation with pvalues
+
+
+
+covsig <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps.txt", header = FALSE)
+covsig$chrompos <- paste(covsig$V1, covsig$V2, sep="_")
+covsig <- c[, -c(2, 3)]
+pvalues <- read.table("/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/GLM/significant-snps-time.txt", header = TRUE)
+pvalues <- pvalues[, -c(1,2)]
+colnames(pvalues) <- c("chrompos", "p")
+merged_data <- merge(pvalues, covsig, by = "chrompos")
+merged_data <- merged_data[,-c(3,4,5)]
+colnames(merged_data) <- c("chrompos", "p", "2009t1", "2009t2", "2009t3", "2009t4", "2011t1","2011t2","2015t1","2015t2","2015t3","2015t4","2022t1","2022t2","2022t3","2022t4")
+merged_data$mean_cov <- rowMeans(merged_data[, 3:16], na.rm = TRUE)
+
+merged_data$log <- -log10(merged_data$p)
+
+
+ggplot(merged_data, aes(x = log, y = mean_cov)) +
+  geom_point(size = 3, show.legend = FALSE) +  # Adjust size as needed
+  labs(title = "Mean Coverage", x = "p value (-log10)", y = "Mean Coverage") +
+  geom_smooth(method='lm')
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-cov-p-value.pdf", width = 8, height = 6, units = "in")
+
+model <- lm(mean_cov ~ log, data = merged_data)
+summary(model)
+```
+
+# now I will check what the allele frequencies are doing!
+# 16.10.2023
+# will do everything in R
+
+```R
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+freq <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header= T)
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/significant-snps-time.txt", header= F)
+
+af <- freq[, c("EA_2009_T1","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "V3")) %>%
+  select(all_of(names(af2)))
+
+transaf<- gather(af2, key = "Sample", value = "af", -chrom)
+
+
+# new columns
+transaf <- transaf %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transaf <- transaf %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+ggplot(data = transaf, aes(x = time_point, y = chrom, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 3) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), size = 1) +
+  labs(x = "Time Point", y = "Chrom", color = "Year") +
+  ggtitle("Dot Plot of Chroms with Connecting Lines")
+
+#I can sub group the individuals
+pops <- pops2[grep("", pops2, invert=T)]
+```
+
