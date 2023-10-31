@@ -667,7 +667,7 @@ d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
         ylab(paste0("PC2: ",percentVar[2],"% variance")) +
         theme_bw() +
        # ylim(-30, 23) + xlim(-50, 65)+
-        scale_shape_manual(values=c( 21,21,22,23))+
+        scale_shape_manual(values=c( 21,22,23,24))+
         scale_color_manual(values=c('black')) +
         #scale_fill_manual(values=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3"),
   scale_fill_manual(values=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A"),
@@ -2212,10 +2212,10 @@ module load gcc/10.2.0
 R
 ```
 
-#GLM
+# GLM
 
 
-#run Rscript
+# run Rscript
 
 ```R
 library(tidyr)
@@ -2681,11 +2681,9 @@ logged_data <- data.frame(
   Logged_Expected = logged_expected_p_values,
   Logged_Observed = logged_p_values
 )
-#FIGURE THIS OUT TOMORROW!
 
 #okay now I want to plot cov in relation with pvalues
-
-
+#########
 
 covsig <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps.txt", header = FALSE)
 covsig$chrompos <- paste(covsig$V1, covsig$V2, sep="_")
@@ -2742,13 +2740,2169 @@ transaf <- transaf %>%
   mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
 transaf <- transaf %>%
   mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
-ggplot(data = transaf, aes(x = time_point, y = chrom, color = year)) +
-  geom_point(position = position_dodge(width = 0.2), size = 3) +
-  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), size = 1) +
-  labs(x = "Time Point", y = "Chrom", color = "Year") +
-  ggtitle("Dot Plot of Chroms with Connecting Lines")
 
-#I can sub group the individuals
-pops <- pops2[grep("", pops2, invert=T)]
+transaf <- transaf %>%
+  group_by(chrom, year) %>%
+  mutate(change_af = af - lag(af, default = first(af)))
+#this graph gives no information at all.
+
+ggplot(data = transaf, aes(x = interaction(year, time_point, lex.order = TRUE), y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 3) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), linewidth = 1) 
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("Dot Plot of AF with Connecting Lines")
+
+# first I will check per year what is going on 
+#lets try with 2009
+
+
+af2009 <- af2 %>%
+  mutate(af_difference = EA_2009_T1 - EA_2009_T4) %>%
+  select(chrom, af_difference) %>%
+  arrange(af_difference)
+
+ggplot(data = af2009, aes(x = af_difference, y = 1)) +
+  geom_point(size = 1) +
+  labs(x = "af_difference", y = "Count") +
+  ggtitle("Scatter Plot of af_difference")
+
+summary_counts <- af2009 %>%
+  summarize(positive_count = sum(af_difference > 0),
+            negative_count = sum(af_difference < 0))
+summary_counts$positive_count
+#1019
+summary_counts$negative_count
+#656
+
+positive2009<- af2009 %>%
+  filter(af_difference > 0)
+
+negative2009<- af2009 %>%
+  filter(af_difference < 0)
+
+
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_positive_2009 <- af2 %>%
+  filter(chrom %in% positive2009$chrom)
+
+#trial crazy plot
+
+filtered_af2 <- filtered_af2 %>%
+  arrange(EA_2009_T4)
+
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+
+transafp2009<- gather(filtered_positive_2009, key = "Sample", value = "af", -chrom)
+transafp2009 <- transafp2009 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transafp2009 <- transafp2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+
+#this graph gives no information at all.
+
+ggplot(data = transafp2009, aes(x = interaction(year, time_point, lex.order = TRUE), y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 1) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), linewidth = 1) 
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("Dot Plot of AF with Connecting Lines")
+
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafp2009$int <- interaction(transafp2009$year, transafp2009$time_point)
+# Check levels
+levels(transafp2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+
+# Reorder the levels of the factor
+transafp2009$int <- factor(transafp2009$int, levels = levels)
+
+# Reverse the order of "time_point" factor levels
+#transafp2009$time_point <- factor(transafp2009$time_point, levels = (time_point_order))
+transafp2009$year <- factor(transafp2009$year, levels = (year_order))
+# Create a plot
+ggplot(data = transafp2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", size = 0.5) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("Dot Plot of AF with Connecting Lines") +
+  theme_bw()
+ # scale_x_discrete(limits = int, labels = int, sep = " "))
+
+
+#same for negative
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_negative_2009 <- af2 %>%
+  filter(chrom %in% negative2009$chrom)
+
+filtered_negative_2009 <- filtered_negative_2009 %>%
+  arrange(EA_2009_T4)
+
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+transafpneg2009<- gather(filtered_negative_2009, key = "Sample", value = "af", -chrom)
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafpneg2009$int <- interaction(transafpneg2009$year, transafpneg2009$time_point)
+# Check levels
+levels(transafpneg2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transafpneg2009$int <- factor(transafpneg2009$int, levels = levels)
+
+# Create a plot
+ggplot(data = transafpneg2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", size = 0.5) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("Dot Plot of AF with Connecting Lines") +
+  theme_bw()
 ```
 
+# okay, now I will check the top 10% and 1% of the snps in terms of pvalues, what are they doing
+```R
+
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+freq <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header= T)
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/significant-snps-time.txt", header= F)
+
+af <- freq[, c("EA_2009_T1","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "V3")) %>%
+  select(names(af2), V4)
+
+#what are the average p values
+mean(af2$V4)
+# 0.02527572
+quantile(af2$V4, 0.9)
+#       90%
+#0.04639943
+threshold <- quantile(af2$V4, 0.01)
+lower_10_percent_data <- af2[af2$V4 <= threshold, ]
+
+# new columns
+
+low10 <- lower_10_percent_data[, -which(names(lower_10_percent_data) == "V4")]
+low10 <- gather(low10, key = "Sample", value = "af", -chrom)
+low10 <- low10 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+low10 <- low10 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+# Create a plot with the specified order, light gray lines, and thin points
+low10$int <- interaction(low10$year, low10$time_point)
+# Check levels
+levels(low10$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+low10$int <- factor(low10$int, levels = levels)
+
+
+ggplot(data = low10, aes(x = int, y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), linewidth = 1) +
+  geom_line(aes(group = chrom),  linewidth = 0.5) 
+  labs(x = "years", y = "AF", color = "Year") +
+  ggtitle("top 10% p values") +
+  theme_bw()
+
+ggplot(data = low10, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "years", y = "AF", color = "Year") +
+  ggtitle("top 10% p values") +
+  theme_bw()
+```
+# 18-10-2023
+
+we went bak to the PCA data - the original one had samples 2009 T1 and 2015 T3 grouped very far apart... 
+for this reason, I will rerun the analysis using 2009 t2 instead of t1 (to see if there are any changes..)
+wondering if I should use t2 for all other years as well... but dont think this one week should do that much although it did a lot for 2011...
+
+arghhh
+I'll try both..
+
+# rerun the GLM analysis, first using 2009 t2 as input, second using all years apart from 2011 starting at t2.
+
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+cov <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov_new_vcf.txt", header = TRUE, sep = "\t")
+freq <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header = TRUE, sep = "\t")
+pos <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chrom-poly-position-seasonal-data.txt", header = FALSE, sep = "\t")
+popinfo <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/popinfo.txt", header = TRUE, sep = "\t")
+#subset populations
+popnames <- grep("EA_2009_T1|EA_2009_T4|EA_2011_T1|EA_2011_T2|EA_2015_T1|EA_2015_T4|EA_2022_T1|EA_2022_T4", popinfo$pop)
+
+#subset 
+cov_glm <- cov[,popnames]
+freq_glm <- freq[,popnames]
+popinfo_glm <- popinfo[popnames,]
+popinfo_glm$time <- c("E","L")
+
+#transform into matrix
+freq_matrix <- as.matrix(freq_glm)
+cov_matrix <- as.matrix(cov_glm)
+dp <- (1/100 + 1/cov_matrix)^-1
+
+popinfo_glm$Y <- as.factor(popinfo_glm$Y)
+popinfo_glm$Y <- factor(popinfo_glm$Y, ordered = FALSE)
+
+#with year as factor
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/glm-181023-time.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/glm-181023-year.txt", "w")
+
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  # Fit the GLM model for the current line
+  out <- summary(glm(freq_matrix[i,] ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]))
+  #glm_model <- summary(glm(freq_matrix[1, ] ~ popinfo_popnames$time, family = binomial, weights = dp[1, ]))
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+# Close the file
+close(fileout)
+close(fileout2)
+
+
+#same GLM but for all t1 t2 comparisons
+#######################################
+cov <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov_new_vcf.txt", header = TRUE, sep = "\t")
+freq <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header = TRUE, sep = "\t")
+pos <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chrom-poly-position-seasonal-data.txt", header = FALSE, sep = "\t")
+popinfo <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/popinfo.txt", header = TRUE, sep = "\t")
+popnames <- grep("EA_2009_T1|EA_2009_T2|EA_2011_T1|EA_2011_T2|EA_2015_T1|EA_2015_T2|EA_2022_T1|EA_2022_T2", popinfo$pop)
+
+#subset 
+cov_glm <- cov[,popnames]
+freq_glm <- freq[,popnames]
+popinfo_glm <- popinfo[popnames,]
+popinfo_glm$time <- c("E","L")
+
+#transform into matrix
+freq_matrix <- as.matrix(freq_glm)
+cov_matrix <- as.matrix(cov_glm)
+dp <- (1/100 + 1/cov_matrix)^-1
+
+popinfo_glm$Y <- as.factor(popinfo_glm$Y)
+popinfo_glm$Y <- factor(popinfo_glm$Y, ordered = FALSE)
+
+#with year as factor
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/glm-181023-t2-time.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/glm-181023-t2-year.txt", "w")
+
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  # Fit the GLM model for the current line
+  out <- summary(glm(freq_matrix[i,] ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]))
+  #glm_model <- summary(glm(freq_matrix[1, ] ~ popinfo_popnames$time, family = binomial, weights = dp[1, ]))
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+close(fileout)
+close(fileout2)
+
+
+#same GLM but for all 2009t2 instead of t1 comparisons
+#######################################
+cov <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov_new_vcf.txt", header = TRUE, sep = "\t")
+freq <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header = TRUE, sep = "\t")
+pos <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chrom-poly-position-seasonal-data.txt", header = FALSE, sep = "\t")
+popinfo <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/popinfo.txt", header = TRUE, sep = "\t")
+popnames <- grep("EA_2009_T2|EA_2009_T4|EA_2011_T1|EA_2011_T2|EA_2015_T1|EA_2015_T4|EA_2022_T1|EA_2022_T4", popinfo$pop)
+
+#subset 
+cov_glm <- cov[,popnames]
+freq_glm <- freq[,popnames]
+popinfo_glm <- popinfo[popnames,]
+popinfo_glm$time <- c("E","L")
+
+#transform into matrix
+freq_matrix <- as.matrix(freq_glm)
+cov_matrix <- as.matrix(cov_glm)
+dp <- (1/100 + 1/cov_matrix)^-1
+
+popinfo_glm$Y <- as.factor(popinfo_glm$Y)
+popinfo_glm$Y <- factor(popinfo_glm$Y, ordered = FALSE)
+
+#with year as factor
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/glm-181023-2009t2-time.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/glm-181023-2009t2-year.txt", "w")
+
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  # Fit the GLM model for the current line
+  out <- summary(glm(freq_matrix[i,] ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = dp[i, ]))
+  #glm_model <- summary(glm(freq_matrix[1, ] ~ popinfo_popnames$time, family = binomial, weights = dp[1, ]))
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+close(fileout)
+close(fileout2)
+```
+
+two output files that I need to look at
+glm-181023-t2-time.txt
+glm-181023-time.txt
+
+```bash
+awk '{print $3}' glm-181023-time.txt > glm-181023-time-p.txt
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' glm-181023-time-p.txt
+#1924
+paste chrom-poly-position-seasonal-data.txt joint.txt glm-181023-time-p.txt > full-table-glm-181023-time-p.txt
+# add header
+echo "chrom pos chrompos p" | cat - full-table-glm-181023-time-p.txt > temp && mv temp full-table-glm-181023-time-p.txt
+
+#nano and fix header
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-glm-181023-time-p.txt > significant-glm-181023-time-p.txt
+
+awk 'NR==FNR{a[$1$2]=$0; next} ($1$2 in a){print a[$1$2]}' cov_with_chrom.txt significant-glm-181023-time-p.txt > cov-sig-snps-glm-181023-time-p.txt
+```
+# now I will plot in R the the output
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+library(tidyr)
+library(ggplot2)
+library(matrixStats)
+
+df<- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-time-p.txt", header= F)
+df <- df[-3]
+df$chrompos <- paste(df$V1, df$V2)
+colnames(df) <- c("chrom","pos",
+                  "2009t1","2009t2","2009t3","2009t4",
+                  "2011t1","2011t2",
+                  "2015t1","2015t2","2015t3","2015t4",
+                  "2022t1","2022t2","2022t3","2022t4",
+                  "chrompos")
+
+df <- df[, -c(2)]
+df_long <- df %>%
+  gather(key = "sample", value = "coverage", -chrompos, -chrom)
+
+ggplot(df_long, aes(x = chrom, y = coverage, color = sample)) +
+  geom_point(position = position_dodge(width = 0.2),size = 3) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  #scale_x_discrete(labels = df_long$chrom) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/coverage-individual-snps-fixed-glm.pdf", width = 8, height = 6, units = "in")
+
+#how many SNPs have the average coverage (500x)
+sum(df_long$coverage <= 500)
+ # 24720 
+ sum(df_long$coverage >= 500)                                                  
+  #2222
+
+df$mean_cov <- rowMeans(df[, -c(1,16)])
+df$se <- rowSds(as.matrix(df[, -c(1,16)])) / sqrt(ncol(df) - 2)
+
+ggplot(df, aes(x = chrompos, y = mean_cov)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_cov - se, ymax = mean_cov + se), width = 0.2) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  scale_x_discrete(labels = NULL) +
+  theme_minimal()
+
+  #not yet
+
+df <- separate(df, chrompos, into = c("chrom", "pos"), sep = " ", remove=FALSE)
+library(dplyr)
+distinct_count <- df %>% 
+  count(chrom)
+
+#                      chrom   n
+#1    Scz6wRH_101;HRSCAF=195   1
+#2    Scz6wRH_108;HRSCAF=204   1
+#3  Scz6wRH_1478;HRSCAF=1610   8
+#4  Scz6wRH_1684;HRSCAF=1838   1
+#5  Scz6wRH_1685;HRSCAF=1840 516
+#6  Scz6wRH_1688;HRSCAF=1872   2
+#7  Scz6wRH_1693;HRSCAF=1917 354
+#8    Scz6wRH_177;HRSCAF=276   1
+#9    Scz6wRH_185;HRSCAF=284   1
+#10     Scz6wRH_19;HRSCAF=90   4
+#11     Scz6wRH_23;HRSCAF=98 483
+#12   Scz6wRH_267;HRSCAF=368   1
+#13   Scz6wRH_276;HRSCAF=378   1
+#14      Scz6wRH_2;HRSCAF=24 526
+#15   Scz6wRH_306;HRSCAF=408   1
+#16   Scz6wRH_345;HRSCAF=449   2
+#17   Scz6wRH_360;HRSCAF=468   1
+#18    Scz6wRH_37;HRSCAF=122   3
+#19   Scz6wRH_430;HRSCAF=541   2
+#20   Scz6wRH_508;HRSCAF=620   1
+#21   Scz6wRH_682;HRSCAF=800   1
+#22    Scz6wRH_76;HRSCAF=166   1
+#23    Scz6wRH_85;HRSCAF=179  10
+#24    Scz6wRH_98;HRSCAF=192   1
+#25      Scz6wRH_9;HRSCAF=61   1
+
+#plot SNPs by chromossome
+ggplot(distinct_count, aes(x = reorder(chrom, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "SNP counts", x = "Chromosome", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/snps-by-choromosome-glm-fixed.pdf", width = 10, height = 6, units = "in")
+
+df$nchrom <- as.integer(factor(df$chrom))
+ggplot(df, aes(x = factor(chrom), y = mean_cov, color=chrom)) +
+  geom_boxplot(width = 0.5, show.legend = FALSE) +  # Adjust width as needed
+  labs(title = "Mean Coverage", x = "Chromosome", y = "Coverage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-coverage-snps-chrom-fixed.pdf", width = 8, height = 6, units = "in")
+
+
+#now I will find out which SNPs were deviating the norm in the QQplot, and see how they behave
+
+#file2
+#time unordered factor
+pvalues <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/full-table-glm-181023-time-p.txt", header = TRUE)
+n <- length(pvalues$p)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(pvalues$p), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "unordered factor (UF)")
+
+abline(0, 1, col = "red")
+
+#okay now I want to plot cov in relation with pvalues
+#########
+
+covsig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-time-p.txt", header= F)
+covsig$chrompos <- paste(covsig$V1, covsig$V2, sep="_")
+covsig <- covsig[, -c(1,2)]
+pvalues <- read.table("/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/GLM/significant-glm-181023-time-p.txt", header = FALSE)
+pvalues <- pvalues[, -c(1,2)]
+colnames(pvalues) <- c("chrompos", "p")
+merged_data <- merge(pvalues, covsig, by = "chrompos")
+merged_data <- merged_data[,-c(3)]
+colnames(merged_data) <- c("chrompos", "p", "2009t1", "2009t2", "2009t3", "2009t4", "2011t1","2011t2","2015t1","2015t2","2015t3","2015t4","2022t1","2022t2","2022t3","2022t4")
+merged_data$mean_cov <- rowMeans(merged_data[, 3:16], na.rm = TRUE)
+
+merged_data$log <- -log10(merged_data$p)
+
+
+ggplot(merged_data, aes(x = log, y = mean_cov)) +
+  geom_point(size = 3, show.legend = FALSE) +  # Adjust size as needed
+  labs(title = "Mean Coverage", x = "p value (-log10)", y = "Mean Coverage") +
+  geom_smooth(method='lm')
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-cov-p-value-fixed.pdf", width = 8, height = 6, units = "in")
+
+model <- lm(mean_cov ~ log, data = merged_data)
+summary(model)
+
+
+# now I will check what the allele frequencies are doing!
+# 16.10.2023
+# will do everything in R
+
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+freq <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header= T)
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-time-p.txt", header= F) 
+
+sig$chrompos <- paste(sig$V1, sig$V2, sep="_")
+af <- freq[, c("EA_2009_T1","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "chrompos")) %>%
+  select(all_of(names(af2)))
+
+transaf<- gather(af2, key = "Sample", value = "af", -chrom)
+
+
+# new columns
+transaf <- transaf %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transaf <- transaf %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+transaf <- transaf %>%
+  group_by(chrom, year) %>%
+  mutate(change_af = af - lag(af, default = first(af)))
+#this graph gives no information at all.
+
+ggplot(data = transaf, aes(x = interaction(year, time_point, lex.order = TRUE), y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 3) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), linewidth = 1) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("changes af t1-t4")
+
+# first I will check per year what is going on 
+#lets try with 2009
+
+
+af2009 <- af2 %>%
+  mutate(af_difference = EA_2009_T1 - EA_2009_T4) %>%
+  select(chrom, af_difference) %>%
+  arrange(af_difference)
+
+ggplot(data = af2009, aes(x = af_difference, y = 1)) +
+  geom_point(size = 1) +
+  labs(x = "af_difference", y = "Count") +
+  ggtitle("Scatter Plot of af_difference")
+
+summary_counts <- af2009 %>%
+  summarize(positive_count = sum(af_difference > 0),
+            negative_count = sum(af_difference < 0))
+summary_counts$positive_count
+#1247
+summary_counts$negative_count
+#671
+
+positive2009<- af2009 %>%
+  filter(af_difference > 0)
+
+negative2009<- af2009 %>%
+  filter(af_difference < 0)
+
+
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_positive_2009 <- af2 %>%
+  filter(chrom %in% positive2009$chrom)
+
+#trial crazy plot
+
+filtered_af2 <- filtered_positive_2009 %>%
+  arrange(EA_2009_T4)
+
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+
+transafp2009<- gather(filtered_positive_2009, key = "Sample", value = "af", -chrom)
+transafp2009 <- transafp2009 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transafp2009 <- transafp2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+
+#this graph gives no information at all.
+
+ggplot(data = transafp2009, aes(x = interaction(year, time_point, lex.order = TRUE), y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 1) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), linewidth = 1) 
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("Dot Plot of AF with Connecting Lines")
+
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafp2009$int <- interaction(transafp2009$year, transafp2009$time_point)
+# Check levels
+levels(transafp2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+
+# Reorder the levels of the factor
+transafp2009$int <- factor(transafp2009$int, levels = levels)
+
+ggplot(data = transafp2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+ # scale_x_discrete(limits = int, labels = int, sep = " "))
+
+
+#same for negative
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_negative_2009 <- af2 %>%
+  filter(chrom %in% negative2009$chrom)
+filtered_negative_2009 <- filtered_negative_2009[,-c(10)]
+filtered_negative_2009 <- filtered_negative_2009 %>%
+  arrange(EA_2009_T4)
+
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+transafpneg2009<- gather(filtered_negative_2009, key = "Sample", value = "af", -chrom)
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafpneg2009$int <- interaction(transafpneg2009$year, transafpneg2009$time_point)
+# Check levels
+levels(transafpneg2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transafpneg2009$int <- factor(transafpneg2009$int, levels = levels)
+
+# Create a plot
+ggplot(data = transafpneg2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", size = 0.5) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+
+# okay, now I will check the top 10% and 1% of the snps in terms of pvalues, what are they doing
+
+
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/significant-glm-181023-time-p.txt", header= F)
+
+af <- freq[, c("EA_2009_T1","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "V3")) %>%
+  select(names(af2), V4)
+
+#whath are the average p values
+mean(af2$V4)
+#  0.02283937
+quantile(af2$V4, 0.9)
+#       90%
+# 0.04594068
+threshold <- quantile(af2$V4, 0.01)
+lower_10_percent_data <- af2[af2$V4 <= threshold, ]
+
+# new columns
+low10 <- lower_10_percent_data[, -which(names(lower_10_percent_data) == "V4")]
+low10 <- gather(low10, key = "Sample", value = "af", -chrom)
+low10 <- low10 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+low10 <- low10 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+# Create a plot with the specified order, light gray lines, and thin points
+low10$int <- interaction(low10$year, low10$time_point)
+# Check levels
+levels(low10$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+low10$int <- factor(low10$int, levels = levels)
+
+ggplot(data = low10, aes(x = int, y = af, color = chrom)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "years", y = "AF", color = "Year") +
+  ggtitle("top 10% p values") +
+  theme_bw()
+```
+now for second file (t2 glm output)
+
+```bash
+awk '{print $3}' glm-181023-t2-time.txt > glm-181023-t2-time-p.txt
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' glm-181023-t2-time-p.txt
+#1830
+paste chrom-poly-position-seasonal-data.txt joint.txt glm-181023-t2-time-p.txt > full-table-glm-181023-t2-time-p.txt
+# add header
+echo "chrom pos chrompos p" | cat - full-table-glm-181023-t2-time-p.txt > temp && mv temp full-table-glm-181023-t2-time-p.txt
+
+#nano and fix header
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-glm-181023-t2-time-p.txt > significant-glm-181023-t2-time-p.txt
+
+awk 'NR==FNR{a[$1$2]=$0; next} ($1$2 in a){print a[$1$2]}' cov_with_chrom.txt significant-glm-181023-t2-time-p.txt > cov-sig-snps-glm-181023-t2-time-p.txt
+```
+# now I will plot in R the the output
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+library(tidyr)
+library(ggplot2)
+library(matrixStats)
+
+df<- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-t2-time-p.txt", header= F)
+df <- df[-3]
+df$chrompos <- paste(df$V1, df$V2)
+colnames(df) <- c("chrom","pos",
+                  "2009t1","2009t2","2009t3","2009t4",
+                  "2011t1","2011t2",
+                  "2015t1","2015t2","2015t3","2015t4",
+                  "2022t1","2022t2","2022t3","2022t4",
+                  "chrompos")
+
+df <- df[, -c(2)]
+df_long <- df %>%
+  gather(key = "sample", value = "coverage", -chrompos, -chrom)
+
+ggplot(df_long, aes(x = chrom, y = coverage, color = sample)) +
+  geom_point(position = position_dodge(width = 0.2),size = 3) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  #scale_x_discrete(labels = df_long$chrom) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/coverage-individual-snps-fixed-glmt2.pdf", width = 8, height = 6, units = "in")
+
+#how many SNPs have the average coverage (500x)
+sum(df_long$coverage <= 500)
+ # 23586 
+ sum(df_long$coverage >= 500)
+#2041
+
+df$mean_cov <- rowMeans(df[, -c(1,16)])
+df$se <- rowSds(as.matrix(df[, -c(1,16)])) / sqrt(ncol(df) - 2)
+
+ggplot(df, aes(x = chrompos, y = mean_cov)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_cov - se, ymax = mean_cov + se), width = 0.2) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  scale_x_discrete(labels = NULL) +
+  theme_minimal()
+#not yet
+
+df <- separate(df, chrompos, into = c("chrom", "pos"), sep = " ", remove=FALSE)
+library(dplyr)
+distinct_count <- df %>% 
+  count(chrom)
+#                      chrom   n
+#1  Scz6wRH_1092;HRSCAF=1221   1
+#2  Scz6wRH_1132;HRSCAF=1261   1
+#3      Scz6wRH_12;HRSCAF=69   2
+#4  Scz6wRH_1478;HRSCAF=1610   7
+#5  Scz6wRH_1657;HRSCAF=1792   1
+#6  Scz6wRH_1684;HRSCAF=1838   2
+#7  Scz6wRH_1685;HRSCAF=1840 525
+#8  Scz6wRH_1688;HRSCAF=1872   2
+#9  Scz6wRH_1693;HRSCAF=1917 347
+#10 Scz6wRH_1699;HRSCAF=1948   1
+#11 Scz6wRH_1702;HRSCAF=1974   1
+#12     Scz6wRH_19;HRSCAF=90   1
+#13   Scz6wRH_201;HRSCAF=300   1
+#14     Scz6wRH_20;HRSCAF=91   4
+#15     Scz6wRH_23;HRSCAF=98 457
+#16   Scz6wRH_267;HRSCAF=368   2
+#17   Scz6wRH_277;HRSCAF=379   1
+#18      Scz6wRH_2;HRSCAF=24 451
+#19   Scz6wRH_306;HRSCAF=408   1
+#20   Scz6wRH_345;HRSCAF=449   2
+#21    Scz6wRH_38;HRSCAF=123   2
+#22   Scz6wRH_407;HRSCAF=518   1
+#23   Scz6wRH_430;HRSCAF=541   2
+#24    Scz6wRH_43;HRSCAF=130   2
+#25   Scz6wRH_528;HRSCAF=640   1
+#26   Scz6wRH_667;HRSCAF=783   1
+#27   Scz6wRH_691;HRSCAF=811   1
+#28    Scz6wRH_76;HRSCAF=166   2
+#29    Scz6wRH_85;HRSCAF=179   7
+
+#these are the longest choromosomes
+#1703:Scz6wRH_1693;HRSCAF=1917   100968129
+#1704:Scz6wRH_23;HRSCAF=98       128296010
+#1705:Scz6wRH_2;HRSCAF=24        140955377
+#1706:Scz6wRH_1685;HRSCAF=1840   147976548
+
+
+#plot SNPs by chromossome
+ggplot(distinct_count, aes(x = reorder(chrom, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "SNP counts", x = "Chromosome", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/snps-by-choromosome-glm-fixed.pdf", width = 10, height = 6, units = "in")
+
+df$nchrom <- as.integer(factor(df$chrom))
+ggplot(df, aes(x = factor(chrom), y = mean_cov, color=chrom)) +
+  geom_boxplot(width = 0.5, show.legend = FALSE) +  # Adjust width as needed
+  labs(title = "Mean Coverage", x = "Chromosome", y = "Coverage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-coverage-snps-chrom-fixed-t2.pdf", width = 8, height = 6, units = "in")
+
+
+#now I will find out which SNPs were deviating the norm in the QQplot, and see how they behave
+
+#time unordered factor
+pvalues <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/full-table-glm-181023-t2-time-p.txt", header = TRUE)
+n <- length(pvalues$p)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(pvalues$p), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "unordered factor (UF)")
+
+abline(0, 1, col = "red")
+
+#okay now I want to plot cov in relation with pvalues
+#########
+
+covsig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-t2-time-p.txt", header= F)
+covsig$chrompos <- paste(covsig$V1, covsig$V2, sep="_")
+covsig <- covsig[, -c(1,2,3)]
+pvalues <- read.table("/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/GLM/significant-glm-181023-t2-time-p.txt", header = FALSE)
+pvalues <- pvalues[, -c(1,2)]
+colnames(pvalues) <- c("chrompos", "p")
+merged_data <- merge(pvalues, covsig, by = "chrompos")
+
+colnames(merged_data) <- c("chrompos", "p", "2009t1", "2009t2", "2009t3", "2009t4", "2011t1","2011t2","2015t1","2015t2","2015t3","2015t4","2022t1","2022t2","2022t3","2022t4")
+merged_data$mean_cov <- rowMeans(merged_data[, 3:16], na.rm = TRUE)
+
+merged_data$log <- -log10(merged_data$p)
+
+
+ggplot(merged_data, aes(x = log, y = mean_cov)) +
+  geom_point(size = 3, show.legend = FALSE) +  # Adjust size as needed
+  labs(title = "Mean Coverage", x = "p value (-log10)", y = "Mean Coverage") +
+  geom_smooth(method='lm')
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-cov-p-value-fixed-t2.pdf", width = 8, height = 6, units = "in")
+
+model <- lm(mean_cov ~ log, data = merged_data)
+summary(model)
+
+
+# now I will check what the allele frequencies are doing!
+
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+freq <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header= T)
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-t2-time-p.txt", header= F) 
+
+sig$chrompos <- paste(sig$V1, sig$V2, sep="_")
+af <- freq[, c("EA_2009_T1","EA_2009_T2" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T2", "EA_2022_T1", "EA_2022_T2")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "chrompos")) %>%
+  select(all_of(names(af2)))
+
+transaf<- gather(af2, key = "Sample", value = "af", -chrom)
+
+
+# new columns
+transaf <- transaf %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transaf <- transaf %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+transaf <- transaf %>%
+  group_by(chrom, year) %>%
+  mutate(change_af = af - lag(af, default = first(af)))
+
+transaf$int <- interaction(transaf$year, transaf$time_point)
+# Check levels
+levels(transafp2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transaf$int <- factor(transaf$int, levels = levels)
+transaf2 <- transaf %>%
+  arrange(af)
+
+
+#this graph gives no information at all.
+ggplot(data = transaf2, aes(x = int, y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 3) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), linewidth = 1) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("changes af t1-t2")
+
+# first I will check per year what is going on 
+#lets try with 2009
+af2009 <- af2 %>%
+  mutate(af_difference = EA_2009_T1 - EA_2009_T2) %>%
+  select(chrom, af_difference) %>%
+  arrange(af_difference)
+
+ggplot(data = af2009, aes(x = af_difference, y = 1)) +
+  geom_point(size = 1) +
+  labs(x = "af_difference", y = "Count") +
+  ggtitle("Scatter Plot of af_difference")
+
+summary_counts <- af2009 %>%
+  summarize(positive_count = sum(af_difference > 0),
+            negative_count = sum(af_difference < 0))
+summary_counts$positive_count
+#1105
+summary_counts$negative_count
+#716
+
+positive2009<- af2009 %>%
+  filter(af_difference > 0)
+
+negative2009<- af2009 %>%
+  filter(af_difference < 0)
+
+
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_positive_2009 <- af2 %>%
+  filter(chrom %in% positive2009$chrom)
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T2)])
+#again....
+# new columns
+
+transafp2009<- gather(filtered_positive_2009, key = "Sample", value = "af", -chrom)
+transafp2009 <- transafp2009 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transafp2009 <- transafp2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+
+#this graph gives no information at all.
+
+ggplot(data = transafp2009, aes(x = interaction(year, time_point, lex.order = TRUE), y = af, color = year)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = chrom), linewidth = 1) 
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("")
+
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafp2009$int <- interaction(transafp2009$year, transafp2009$time_point)
+# Check levels
+levels(transafp2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+
+# Reorder the levels of the factor
+transafp2009$int <- factor(transafp2009$int, levels = levels)
+
+ggplot(data = transafp2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+ # scale_x_discrete(limits = int, labels = int, sep = " "))
+
+
+#same for negative
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_negative_2009 <- af2 %>%
+  filter(chrom %in% negative2009$chrom)
+filtered_negative_2009 <- filtered_negative_2009[,-c(10)]
+#filtered_negative_2009 <- filtered_negative_2009 %>%
+#  arrange(EA_2009_T4)
+
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+transafpneg2009<- gather(filtered_negative_2009, key = "Sample", value = "af", -chrom)
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafpneg2009$int <- interaction(transafpneg2009$year, transafpneg2009$time_point)
+# Check levels
+levels(transafpneg2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transafpneg2009$int <- factor(transafpneg2009$int, levels = levels)
+
+# Create a plot
+ggplot(data = transafpneg2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", size = 0.5) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+# okay, now I will check the top 10% and 1% of the snps in terms of pvalues, what are they doing
+
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/significant-glm-181023-t2-time-p.txt", header= F) 
+
+af <- freq[, c("EA_2009_T1","EA_2009_T2" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T2", "EA_2022_T1", "EA_2022_T2")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "V3")) %>%
+  select(names(af2), V4)
+
+#whath are the average p values
+mean(af2$V4)
+#0.02710126
+quantile(af2$V4, 0.9)
+#       90%
+#0.04696166
+threshold <- quantile(af2$V4, 0.1)
+lower_10_percent_data <- af2[af2$V4 <= threshold, ]
+
+# new columns
+low10 <- lower_10_percent_data[, -which(names(lower_10_percent_data) == "V4")]
+low10 <- gather(low10, key = "Sample", value = "af", -chrom)
+low10 <- low10 %>%
+  mutate(time_point = ifelse(grepl("T1", Sample), "start", "end"))
+low10 <- low10 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+# Create a plot with the specified order, light gray lines, and thin points
+low10$int <- interaction(low10$year, low10$time_point)
+# Check levels
+levels(low10$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+low10$int <- factor(low10$int, levels = levels)
+
+ggplot(data = low10, aes(x = int, y = af, color = chrom)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "years", y = "AF", color = "Year") +
+  ggtitle("top 10% p values") +
+  theme_bw()
+```
+# now for the third file using 
+
+
+```bash
+awk '{print $3}' glm-181023-2009t2-time.txt > glm-181023-2009t2-time-p.txt
+awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' glm-181023-2009t2-time-p.txt
+#1099
+paste chrom-poly-position-seasonal-data.txt joint.txt glm-181023-2009t2-time-p.txt > full-table-glm-181023-2009t2-time-p.txt
+# add header
+echo "chrom pos chrompos p" | cat - full-table-glm-181023-2009t2-time-p.txt > temp && mv temp full-table-glm-181023-2009t2-time-p.txt
+
+#nano and fix header
+
+awk -F'\t' '$4 <= 0.05 { print }' full-table-glm-181023-2009t2-time-p.txt > significant-glm-181023-2009t2-time-p.txt
+
+awk 'NR==FNR{a[$1$2]=$0; next} ($1$2 in a){print a[$1$2]}' cov_with_chrom.txt significant-glm-181023-2009t2-time-p.txt > cov-sig-snps-glm-181023-2009t2-time-p.txt
+```
+# now I will plot in R the the output
+module load R/4.1.1
+module load gcc/10.2.0
+```R
+library(tidyr)
+library(ggplot2)
+library(matrixStats)
+
+df<- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-2009t2-time-p.txt", header= F)
+df <- df[-3]
+df$chrompos <- paste(df$V1, df$V2)
+colnames(df) <- c("chrom","pos",
+                  "2009t1","2009t2","2009t3","2009t4",
+                  "2011t1","2011t2",
+                  "2015t1","2015t2","2015t3","2015t4",
+                  "2022t1","2022t2","2022t3","2022t4",
+                  "chrompos")
+
+df <- df[, -c(2)]
+df_long <- df %>%
+  gather(key = "sample", value = "coverage", -chrompos, -chrom)
+
+ggplot(df_long, aes(x = chrom, y = coverage, color = sample)) +
+  geom_point(position = position_dodge(width = 0.2),size = 3) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  #scale_x_discrete(labels = df_long$chrom) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/coverage-individual-snps-fixed-glm-2009t2.pdf", width = 8, height = 6, units = "in")
+
+#how many SNPs have the average coverage (500x)
+sum(df_long$coverage <= 500)
+ # 14382 
+ sum(df_long$coverage >= 500)
+#1005
+
+df$mean_cov <- rowMeans(df[, -c(1,16)])
+df$se <- rowSds(as.matrix(df[, -c(1,16)])) / sqrt(ncol(df) - 2)
+
+ggplot(df, aes(x = chrompos, y = mean_cov)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_cov - se, ymax = mean_cov + se), width = 0.2) +
+  labs(title = "coverage", x = "chromosome", y = "coverage") +
+  scale_x_discrete(labels = NULL) +
+  theme_minimal()
+
+df <- separate(df, chrompos, into = c("chrom", "pos"), sep = " ", remove=FALSE)
+library(dplyr)
+distinct_count <- df %>% 
+  count(chrom)
+
+#plot SNPs by chromossome
+ggplot(distinct_count, aes(x = reorder(chrom, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "SNP counts", x = "Chromosome", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/snps-by-choromosome-glm-fixed.pdf", width = 10, height = 6, units = "in")
+
+df$nchrom <- as.integer(factor(df$chrom))
+ggplot(df, aes(x = factor(chrom), y = mean_cov, color=chrom)) +
+  geom_boxplot(width = 0.5, show.legend = FALSE) +  # Adjust width as needed
+  labs(title = "Mean Coverage", x = "Chromosome", y = "Coverage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-coverage-snps-chrom-fixed-t2.pdf", width = 8, height = 6, units = "in")
+
+
+#now I will find out which SNPs were deviating the norm in the QQplot, and see how they behave
+
+#time unordered factor
+pvalues <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/full-table-glm-181023-2009t2-time-p.txt", header = TRUE)
+n <- length(pvalues$p)
+expected_p_values <- seq(0, 1, length.out = n)
+# Create a QQ plot
+qqplot(-log10(expected_p_values), -log10(pvalues$p), xlab = "Expected -log10(p)", ylab = "Observed -log10(p)", main = "unordered factor (UF)")
+abline(0, 1, col = "red")
+
+#okay now I want to plot cov in relation with pvalues
+#########
+
+covsig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-2009t2-time-p.txt", header= F)
+covsig$chrompos <- paste(covsig$V1, covsig$V2, sep="_")
+covsig <- covsig[, -c(1,2,3)]
+pvalues <- read.table("/gxfs_work1/geomar/smomw573/seasonal_adaptation/analysis/GLM/significant-glm-181023-2009t2-time-p.txt", header = FALSE)
+pvalues <- pvalues[, -c(1,2)]
+colnames(pvalues) <- c("chrompos", "p")
+merged_data <- merge(pvalues, covsig, by = "chrompos")
+
+colnames(merged_data) <- c("chrompos", "p", "2009t1", "2009t2", "2009t3", "2009t4", "2011t1","2011t2","2015t1","2015t2","2015t3","2015t4","2022t1","2022t2","2022t3","2022t4")
+merged_data$mean_cov <- rowMeans(merged_data[, 3:16], na.rm = TRUE)
+merged_data$log <- -log10(merged_data$p)
+
+ggplot(merged_data, aes(x = log, y = mean_cov)) +
+  geom_point(size = 3, show.legend = FALSE) +  # Adjust size as needed
+  labs(title = "Mean Coverage", x = "p value (-log10)", y = "Mean Coverage") +
+  geom_smooth(method='lm')
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-cov-p-value-fixed-2009t2.pdf", width = 8, height = 6, units = "in")
+
+model <- lm(mean_cov ~ log, data = merged_data)
+summary(model)
+
+
+# now I will check what the allele frequencies are doing!
+
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+freq <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header= T)
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-2009t2-time-p.txt", header= F) 
+
+sig$chrompos <- paste(sig$V1, sig$V2, sep="_")
+af <- freq[, c("EA_2009_T2","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "chrompos")) %>%
+  select(all_of(names(af2)))
+
+transaf<- gather(af2, key = "Sample", value = "af", -chrom)
+
+# new columns
+transaf <- transaf %>%
+  mutate(time_point = ifelse(grepl("T1|2009_T2", Sample), "start", "end"))
+transaf <- transaf %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+transaf <- transaf %>%
+  group_by(chrom, year) %>%
+  mutate(change_af = af - lag(af, default = first(af)))
+
+transaf$int <- interaction(transaf$year, transaf$time_point)
+# Check levels
+levels(transafp2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transaf$int <- factor(transaf$int, levels = levels)
+transaf2 <- transaf %>%
+  arrange(af)
+
+
+#this graph gives no information at all.
+ggplot(data = transaf2, aes(x = int, y = af, color = year)) +
+  geom_point(position = position_dodge(width = 0.2), size = 3) +
+  geom_line(aes(group = chrom), position = position_dodge(width = 0.2), linewidth = 1) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("changes af ")
+
+# first I will check per year what is going on 
+#lets try with 2009
+af2009 <- af2 %>%
+  mutate(af_difference = EA_2009_T2 - EA_2009_T4) %>%
+  select(chrom, af_difference) %>%
+  arrange(af_difference)
+
+ggplot(data = af2009, aes(x = af_difference, y = 1)) +
+  geom_point(size = 1) +
+  labs(x = "af_difference", y = "Count") +
+  ggtitle("Scatter Plot of af_difference")
+
+summary_counts <- af2009 %>%
+  summarize(positive_count = sum(af_difference > 0),
+            negative_count = sum(af_difference < 0))
+summary_counts$positive_count
+#652
+summary_counts$negative_count
+#443
+positive2009<- af2009 %>%
+  filter(af_difference > 0)
+negative2009<- af2009 %>%
+  filter(af_difference < 0)
+
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_positive_2009 <- af2 %>%
+  filter(chrom %in% positive2009$chrom)
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+
+transafp2009<- gather(filtered_positive_2009, key = "Sample", value = "af", -chrom)
+transafp2009 <- transafp2009 %>%
+  mutate(time_point = ifelse(grepl("T1|2009_T2", Sample), "start", "end"))
+transafp2009 <- transafp2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+
+#this graph gives no information at all.
+
+ggplot(data = transafp2009, aes(x = interaction(year, time_point, lex.order = TRUE), y = af, color = year)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = chrom), linewidth = 1) 
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("")
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafp2009$int <- interaction(transafp2009$year, transafp2009$time_point)
+# Check levels
+levels(transafp2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+
+# Reorder the levels of the factor
+transafp2009$int <- factor(transafp2009$int, levels = levels)
+
+ggplot(data = transafp2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+ # scale_x_discrete(limits = int, labels = int, sep = " "))
+
+#same for negative
+filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+#again....
+# new columns
+#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+filtered_negative_2009 <- af2 %>%
+  filter(chrom %in% negative2009$chrom)
+filtered_negative_2009 <- filtered_negative_2009[,-c(10)]
+#filtered_negative_2009 <- filtered_negative_2009 %>%
+#  arrange(EA_2009_T4)
+
+
+#first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
+#reorder chroms,
+transafpneg2009<- gather(filtered_negative_2009, key = "Sample", value = "af", -chrom)
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(time_point = ifelse(grepl("T1|2009_T2", Sample), "start", "end"))
+transafpneg2009 <- transafpneg2009 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+
+# Create a plot with the specified order, light gray lines, and thin points
+transafpneg2009$int <- interaction(transafpneg2009$year, transafpneg2009$time_point)
+# Check levels
+levels(transafpneg2009$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transafpneg2009$int <- factor(transafpneg2009$int, levels = levels)
+
+# Create a plot
+ggplot(data = transafpneg2009, aes(x = int, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", size = 0.5) +
+  labs(x = "Year & Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+# okay, now I will check the top 10% and 1% of the snps in terms of pvalues, what are they doing
+
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/significant-glm-181023-2009t2-time-p.txt", header= F) 
+
+af <- freq[, c("EA_2009_T2","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1",
+ "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+af2 <- af2 %>%
+  inner_join(sig, by = c("chrom" = "V3")) %>%
+  select(names(af2), V4)
+
+#whath are the average p values
+mean(af2$V4)
+#0.02710126
+quantile(af2$V4, 0.9)
+#       90%
+#0.04696166
+threshold <- quantile(af2$V4, 0.1)
+lower_10_percent_data <- af2[af2$V4 <= threshold, ]
+
+# new columns
+low10 <- lower_10_percent_data[, -which(names(lower_10_percent_data) == "V4")]
+low10 <- gather(low10, key = "Sample", value = "af", -chrom)
+low10 <- low10 %>%
+  mutate(time_point = ifelse(grepl("T1|2009_T2", Sample), "start", "end"))
+low10 <- low10 %>%
+  mutate(year = as.integer(sub("EA_(\\d{4})_.*", "\\1", Sample)))
+# Create a plot with the specified order, light gray lines, and thin points
+low10$int <- interaction(low10$year, low10$time_point)
+# Check levels
+levels(low10$int)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+low10$int <- factor(low10$int, levels = levels)
+
+ggplot(data = low10, aes(x = int, y = af, color = chrom)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "years", y = "AF", color = "Year") +
+  ggtitle("top 10% p values") +
+  theme_bw()
+```
+# play around with allele freqs to figure out what is going on
+
+first I will normalize the data and plot everything for T2 2009, and then every start end
+
+will do it in R
+
+```bash
+module load R/4.1.1
+module load gcc/10.2.0
+```
+```R
+library(tidyr)
+library(ggplot2)
+library(matrixStats)
+
+freq <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header= T)
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+sig <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov-sig-snps-glm-181023-2009t2-time-p.txt", header= F) 
+
+sig$chrompos <- paste(sig$V1, sig$V2, sep="_")
+
+af <- freq[, c("EA_2009_T2","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1", "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(chrom, af)
+
+colnames(af2) <- c("chrom", "2009.start", "2009.end",
+  "2011.start", "2011.end", 
+  "2015.start", "2015.end",
+  "2022.start","2022.end")
+
+normalized_af <- af2 %>%
+  mutate(across(starts_with("EA_"), ~ . - 2009.start))
+
+#select significant snps
+
+normaf2 <- normalized_af %>%
+  inner_join(sig, by = c("chrom" = "chrompos")) %>%
+  select(all_of(names(normalized_af))) #do not include columns in sig
+
+colnames(normaf2) <- c("chrom", "2009.start", "2009.end",
+  "2011.start", "2011.end", 
+  "2015.start", "2015.end",
+  "2022.start","2022.end")
+
+transnormaf<- gather(normaf2, key = "year", value = "af", -chrom)
+#now 
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+transnormaf$year <- factor(transnormaf$year, levels = levels)
+
+d <- ggplot(data = transnormaf, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/af-normalized2009.pdf",d, w=6, h=6)
+
+#doesnt help
+ggplot(transnormaf, aes(x = year, y = af, fill = year)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+# Calculate mean and SE by year
+sumdata <- transnormaf %>%
+  group_by(year) %>%
+  summarize(mean_af = mean(af), se = sd(af) / sqrt(n()))
+
+#percentage positive SNPs (increasing AF) per year
+
+percpos <- colSums(result[, -1] > 0) / nrow(result) * 100
+
+# Print the percentage of positive values for each column
+print(percpos)
+
+# Create the dot plot
+  ggplot(sumdata, aes(x = year, y = mean_af)) +
+  geom_dotplot(binaxis = "y", binwidth = 0.05, dotsize = 0.1, stackdir = "center") +
+  geom_errorbar(aes(ymin = mean_af - se, ymax = mean_af + se), width = 0.2) +
+  labs(x = "Year", y = "Mean AF") +
+  ggtitle("Average change in AF") +
+  ylim(-0.05, 0.05)
+
+#estimate percentage of positive values (or SNPs that went up from 2009 start)
+
+result <- normaf2 %>%
+  mutate(across(starts_with("2009.") | starts_with("2011.") | starts_with("2015.") | starts_with("2022."), ~ . > 0))
+
+# Print the result
+print(result)
+
+#okay, now from this I want to keep the values which are increasing 
+
+result2 <- result %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == TRUE))
+#366 snps
+
+#create the dataset with these snps
+merged <- merge(result2, normaf2, by = "chrom", suffixes = c(".result2", ".normaf2"))
+# Find the column names ending with "normaf2"
+normaf2_columns <- grep("normaf2", names(merged), value = TRUE)
+
+# Select the columns with those names
+positivesnps <- merged %>%
+  select(chrom, all_of(normaf2_columns))
+
+positivesnpst <- gather(positivesnps, key = "year", value = "af", -chrom)
+
+levels <- c("2009.start.normaf2", "2009.end.normaf2", "2011.start.normaf2", "2011.end.normaf2", "2015.start.normaf2", "2015.end.normaf2", "2022.start.normaf2", "2022.end.normaf2")
+# Reorder the levels of the factor
+positivesnpst$year <- factor(positivesnpst$year, levels = levels)
+
+ggplot(data = positivesnpst, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+#negative snps
+neg <- result %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == FALSE))
+mergedneg <- merge(neg, normaf2, by = "chrom", suffixes = c(".result2", ".normaf2"))
+negsnps <- mergedneg %>%
+  select(chrom, all_of(normaf2_columns))
+negsnpst <- gather(negsnps, key = "year", value = "af", -chrom)
+negsnpst$year <- factor(negsnpst$year, levels = levels)
+
+ggplot(data = negsnpst, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+
+###now I'll normalize things by end start every year
+
+normafindyear <- af2 %>%
+  mutate(
+    '2009.end.normalized' = `2009.end` - `2009.start`,
+    '2011.end.normalized' = `2011.end` - `2011.start`,
+    '2015.end.normalized' = `2015.end` - `2015.start`,
+    '2022.end.normalized' = `2022.end` - `2022.start`
+  )
+
+normafindyear <- normafindyear %>%
+  mutate(
+    '2009.start' = 0,
+    '2011.start' = 0,
+    '2015.start' = 0,
+    '2022.start' = 0
+  )
+# Select the columns you want to keep
+selected_columns <- normafindyear %>%
+  select(chrom, , ends_with(".start"), ends_with(".normalized"))
+
+# Create a new dataset with the selected columns
+normafindyear <- selected_columns
+
+# Rename the columns if needed
+colnames(normafindyear) <- gsub(".normalized", "", colnames(normafindyear))
+
+# View the new dataset
+head(normafindyear)
+
+normaf2 <- normafindyear %>%
+  inner_join(sig, by = c("chrom" = "chrompos")) %>%
+  select(all_of(names(normafindyear))) #do not include columns in sig
+
+normindyear<- gather(normaf2, key = "year", value = "af", -chrom)
+#now 
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+normindyear$year <- factor(normindyear$year, levels = levels)
+
+ggplot(data = normindyear, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5)+
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+#now the pos and negatives###
+#############################
+
+#estimate percentage of positive values (or SNPs that went up from 2009 start)
+
+result <- normaf2 %>%
+  mutate(across(starts_with("2009.") | starts_with("2011.") | starts_with("2015.") | starts_with("2022."), ~ . > 0))
+
+# Print the result
+print(result)
+
+#okay, now from this I want to keep the values which are increasing 
+
+result2 <- result %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == TRUE))
+#335 snps
+
+#create the dataset with these snps
+merged <- merge(result2, normaf2, by = "chrom", suffixes = c(".result2", ".normaf2"))
+# Find the column names ending with "normaf2"
+normaf2_columns <- grep("normaf2", names(merged), value = TRUE)
+
+# Select the columns with those names
+positivesnps <- merged %>%
+  select(chrom, all_of(normaf2_columns))
+
+positivesnpst <- gather(positivesnps, key = "year", value = "af", -chrom)
+colnames(positivesnpst) <- gsub(".normalized", "", colnames(positivesnpst))
+
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+positivesnpst$year <- factor(positivesnpst$year, levels = levels)
+
+d <- ggplot(data = positivesnpst, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/af-normalizedperyear-pos.pdf",d, w=7, h=5)
+
+#so now I have the list of the significant snps which constantly increased from start to end,
+#I will pull the original AF from these snps and plot it
+
+finalpos <- af2 %>%
+  inner_join(positivesnps, by = c("chrom" = "chrom")) %>%
+  select(all_of(names(af2)))
+finalpost <- gather(finalpos, key = "year", value = "af", -chrom)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+finalpost$year <- factor(finalpost$year, levels = levels)
+ggplot(data = finalpost, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+
+#negative snps
+neg <- result %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == FALSE))
+#474 snps
+
+mergedneg <- merge(neg, normaf2, by = "chrom", suffixes = c(".result2", ".normaf2"))
+normaf2_columns <- grep("normaf2", names(mergedneg), value = TRUE)
+negsnps <- mergedneg %>%
+  select(chrom, all_of(normaf2_columns))
+colnames(negsnps) <- gsub(".normaf2", "", colnames(negsnps))
+negsnpst <- gather(negsnps, key = "year", value = "af", -chrom)
+negsnpst$year <- factor(negsnpst$year, levels = levels)
+
+ggplot(data = negsnpst, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+#so now I have the list of the significant snps which constantly decreased from start to end,
+#I will pull the original AF from these snps and plot it
+mergedneg <- merge(neg, normaf2, by = "chrom", suffixes = c(".result2", ".normaf2"))
+normaf2_columns <- grep("normaf2", names(mergedneg), value = TRUE)
+negsnps <- mergedneg %>%
+  select(chrom, all_of(normaf2_columns))
+colnames(negsnps) <- gsub(".normaf2", "", colnames(negsnps))
+finalneg <- af2 %>%
+  inner_join(negsnps, by = c("chrom" = "chrom")) %>%
+  select(all_of(names(af2)))
+finalnegt <- gather(finalneg, key = "year", value = "af", -chrom)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+# Reorder the levels of the factor
+finalnegt$year <- factor(finalnegt$year, levels = levels)
+d <- ggplot(data = finalnegt, aes(x = year, y = af, color = year)) +
+  geom_line(aes(group = chrom), color = "lightgray", linewidth = 0.5) +
+  labs(x = "Year / Time Point", y = "AF", color = "Year") +
+  ggtitle("") +
+  theme_bw()
+
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/af-normalizedperyear-neg.pdf",d, w=7, h=5)
+
+#now I am going to export the datasets with the list of snps
+
+write.table(positivesnps, "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/positive-sig-seasonal-snps-list.txt", sep = "\t", quote = FALSE, row.names = FALSE)
+write.table(negsnps, "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/neg-sig-seasonal-snps-list.txt", sep = "\t", quote = FALSE, row.names = FALSE)
+
+
+```
+# 26-10-2023
+# Running bypass and byenv
+```bash
+#in the end I dowloaded PGDspider with wget
+#went to the software directory and ran 
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=50000 --time=07:00:00 /bin/bash
+module load bcftools/1.10.2
+
+#subset the vcf for the pops of interest
+bcftools view -s EA_2009_T2,EA_2009_T4,EA_2011_T1,EA_2011_T2,EA_2015_T1,EA_2015_T4,EA_2022_T1,EA_2022_T4 /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf -o /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf.gz
+
+cd /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+
+#baypass
+git clone https://gitlab.com/YDorant/Toolbox
+
+
+#ok lets try it with a subsample data
+bcftools view -Ov -o /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset_corrected2.vcf -m2 -M2 -v snps -n 100000 /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf.gz
+head -n 50000 final_20230810_subset.vcf > first_50000_lines.vcf
+grep -v "^#" first_50000_lines.vcf |wc -l
+499743
+
+#what is going on in the example data?
+python Toolbox/reshaper_baypass.py ~/canada.vcf.gz ~/popmap_canada.txt /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/canada.baypass
+
+#okay
+
+python Toolbox/reshaper_baypass.py /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/ /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/popmap2.txt /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset_trimmed2.baypass
+#works so I will run a job (below)
+#but first try bayenv dataprep
+#PDGSpider
+#if needed conda activate java
+#create spid file on GUI
+java -Xmx1024m -Xms512m -jar PGDSpider2.jar
+#run command line
+java -Xmx1024m -Xms512m -jar PGDSpider2-cli.jar -inputfile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf -inputformat VCF -outputfile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_trimmed.bayenv -outputformat BAYENV -spid /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/template_VCF_BAYENV.spid
+
+#okay, it works with the trimmed data
+#so I will also run a job
+#ran the job - does not work! something to do with vcf format but Im in a hurry and will try poolfstat (below scripts)
+
+module load R/4.3.1
+module load gcc/10.2.0
+```
+run it in a job
+convert-baypass.sh
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=5:00:00
+#SBATCH --job-name=trim
+#SBATCH --output=baypass_convert.out
+#SBATCH --error=baypass_convert.err
+
+
+python Toolbox/reshaper_baypass.py /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/popmap2.txt /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.baypass
+
+
+
+###############################
+
+#job 2
+convert-bayenv.sh
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/software/PGDSpider_2.1.1.5
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=42G
+#SBATCH --time=40:00:00
+#SBATCH --job-name=bayenv-conv
+#SBATCH --output=bayenv_convert.out
+#SBATCH --error=bayenv_convert.err
+
+conda activate java
+
+java -Xmx1024m -Xms1024m -jar PGDSpider2-cli.jar -inputfile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf -inputformat VCF -outputfile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_trimmed.bayenv -outputformat BAYENV -spid /gxfs_home/geomar/smomw573/software/PGDSpider_2.1.1.5/spid-bayenv.spid
+
+
+```bash 
+
+#check if data is okay with python
+with open('/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/popmap2.txt', 'r') as file:
+    for line_number, line in enumerate(file, start=1):
+        # Remove leading and trailing whitespace and split by comma
+        parts = line.strip().split(',')
+        
+        if len(parts) == 2:
+            ind, pop = parts
+            print(f"Line {line_number}: ind = {ind}, pop = {pop}")
+        else:
+            print(f"Error in line {line_number}: Invalid format - {line}")
+```
+
+```
+```R
+library(vcfR)
+library(adegenet)
+library(hierfstat)
+
+#transform vcf into bayescan input data
+vcf <- read.vcfR("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf.gz", verbose=FALSE)
+pop_map <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/popmap.txt", header=TRUE, stringsAsFactors = TRUE)
+show(vcf)
+head(vcf)
+genind <- vcfR2genind(vcf)
+
+genind@pop <- pop_map$STRATA
+save(genind, file="final_vcf_subset.RData")
+
+pop(genind)
+#no pops
+pop_names <- indNames(genind)
+pop2 <- rep (NA, length(pop_names))
+
+pop2[grep("2009_T2", pop_names)] <- "2009.start"
+pop2[grep("9_T4", pop_names)] <- "2009.end"
+pop2[grep("11_T1", pop_names)] <- "2011.start"
+pop2[grep("11_T2", pop_names)] <- "2011.end"
+pop2[grep("5_T1", pop_names)] <- "2015.start"
+pop2[grep("5_T4", pop_names)] <- "2015.end"
+pop2[grep("2_T1", pop_names)] <- "2022.start"
+pop2[grep("2_T4", pop_names)] <- "2022.end"
+
+pop2
+
+pop(genind) 
+#nothing in the pop field at the moment for this genind...
+# try attaching this vector of popdata to the genind object...
+#?strata
+strata(genind) <- data.frame(pop2)
+strata(genind)
+setPop(genind) <- ~pop2
+genind
+
+```
+# nothing worked so lets try poolfstat
+
+```R
+
+library(poolfstat)
+dat <- vcf2pooldata(vcf.file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_subset.vcf",poolsizes=rep(50,8))
+
+pooldata2genobaypass(dat,writing.dir="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/")
+
+```
+# that did work
+# 30-10-2023
+
+#install baypass following instructions https://forgemia.inra.fr/mathieu.gautier/baypass_public
+#produced gfile using poolfstats, efile and poolsize file manually
+
+#trial run
+```bash
+/gxfs_home/geomar/smomw573/software/baypass_public-master/sources/g_baypass \
+-gfile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/headgenobaypass \
+-efile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/cov-baypass.txt \
+-poolsizefile /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/haploid-size-baypass-txt \
+-outprefix /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/trial1 -nthreads 2
+
+#okay works now I'll run a job with the whole file 
+```
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=cluster
+#SBATCH --nodes=5
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=50G
+#SBATCH --time=20:00:00
+#SBATCH --job-name=bayenv-conv
+#SBATCH --output=baypass.out
+#SBATCH --error=baypass.err
+
+inputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants
+outputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass
+baypassdir=/gxfs_home/geomar/smomw573/software/baypass_public-master/sources
+
+$baypassdir/g_baypass \
+-gfile $inputdir/genobaypass \
+-efile $inputdir/cov-baypass.txt \
+-poolsizefile $inputdir/haploid-size-baypass-txt \
+-outprefix $outputdir/correct-haplo -nthreads 10
+(base) [smomw573@nesh-fe3 scripts]$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#filter vcf
+```bash
+python ~/seasonal_adaptation/scripts/filter_sync_by_snplist.py -i /gxfs_work1/geomar/smomw504/seasonal_adaptation/analysis/variants/all.final.sync \
+  -snps /gxfs_work1/geomar/smomw504/seasonal_adaptation/analysis/variants/snpdet \
+  -o /gxfs_work1/geomar/smomw504/seasonal_adaptation/analysis/variants/filtered.sync
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# poolfstat for new vcf
+
+```R
+/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf.gz
+cd 
+
+#poolfstat for vcf
+
+library(poolfstat)
+
+#import vcf file
+ea.readcount30X <- vcf2pooldata(vcf.file="depth-corrected.recode.vcf.gz",poolsizes=rep(50,14))
+# summary of the resulting pooldata object
+ea.readcount30X
+
+#ha?
+selected.snps.idx <- as.numeric(sub("rs","",rownames(ea.readcount30X@snp.info)))
+head(selected.snps.idx)
+
+#estimate genome wide Fst across all the popuatlions
+ea.readcount30X.fst<-computeFST(ea.readcount30X)
+ea.readcount30X.fst$FST
+#genome wide Fst is -0.01960076, so 0
+
+# Block-Jackknife estimation of FST standard-error and confidence intervals:
+ea.readcount30X.fst<-computeFST(ea.readcount30X,nsnp.per.bjack.block = 1000, verbose=FALSE)
+ea.readcount30X.fst$FST
+#same value  -0.01960076
+
+ea.readcount30X.fst$mean.fst #block-jacknife estimate of s.e.
+#-0.02009452
+ea.readcount30X.fst$se.fst #s.e. of the genome-wide Fst estimate
+#2.90547e-05
+ea.readcount30X.fst$mean.fst+c(-1.96,1.96)*ea.readcount30X.fst$se.fst
+# -0.02015146 -0.02003757
+
+
+#Computing multi-locus FST to scan the genome over sliding-windows of SNPs
+
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=50)
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=100)
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=10)
+#we have 42K scaffolds so loosing a lot of data with sliding window size of 50-100 chrom?
+
+
+#6722 chromosomes scanned (with more than 50 SNPs)
+#Average (min-max) Window Sizes 0.3 ( 0.1 - 4.9 ) kb
+
+
+#931 chromosomes scanned (with more than 100 SNPs)
+#Average (min-max) Window Sizes 0.8 ( 0.2 - 7.4 ) kb
+
+
+#31251 chromosomes scanned (with more than 10 SNPs)
+#Average (min-max) Window Sizes 0 ( 0 - 6.9 ) kb
+
+#I will just play around with 100 as I dont really understand
+ea.readcount30X.fst<-computeFST(ea.readcount30X,sliding.window.size=100)
+
+plot(ea.readcount30X.fst$sliding.windows.fst$CumulatedPosition/1e6,
+     ea.readcount30X.fst$sliding.windows.fst$MultiLocusFst,
+     xlab="Cumulated Position (in Mb)",ylab="Muli-locus Fst")
+     #col=as.numeric(ea.readcount30X.fst$sliding.windows.fst$Chr),pch=16) Doesnt work as we dont have chromossome numbers
+abline(h=ea.readcount30X.fst$FST,lty=2)
+
+head(ea.readcount30X.fst$sliding.windows.fst$CumulatedPosition/1e6)
+head(ea.readcount30X.fst$sliding.windows.fst$MultiLocusFst)
+head(ea.readcount30X.fst$sliding.windows.fst$Chr)
+
+#Manhattan plot of the multi-locus FST computed over sliding-windows of 50 SNPs on the PoolSeq example data. The dashed line indicates the estimated overall genome-wide FST . The 20 simulated
+#chromosomes are represented by alternate colors
+
+
+#pairwise FST
+
+ea.pairwisefst<-compute.pairwiseFST(ea.readcount30X,verbose=FALSE)
+#heatmap
+#Heatmap representing the pairwise-population FST matrix of the 14 populations of the 30XPool-Seq example data set
+heatmap(ea.pairwisefst)
+#it moves pops which are more similar to each other 
+
+#Block-Jackknife estimation of FST standard-error and visualisation of confidence intervals
+ea.pairwisefst@PairwiseFSTmatrix
+plot(ea.pairwisefst)
+
+
+head(ea.pairwisefst@values)
+library(ggplot2)
+
+# add mean to ggplot2 boxplot
+ggplot(ds, aes(x = label, y = temperature, fill = label)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+# Transpose the data using the gather function
+data_cov_transposed <- gather(data_COV, key = "ID", value = "weight", -CHROM, -POS, -REF, -ALT)
+
+
+####count_data####
+
+data2 <- data
+#count data
+data_CNT <- data2[, c("CHROM", "POS", "REF", "ALT")]
+# Identify columns with names containing "_CNT"
+count_columnsref <- grep(".REF_CNT$", names(data2))
+count_columnsalt <- grep(".ALT_CNT$", names(data2))
+# Rename the columns to remove "_CNT"
+new_colnames_ref <- gsub(".REF_CNT", "", names(data2)[count_columnsref])
+new_colnames_alt <- gsub(".ALT_CNT", "", names(data2)[count_columnsalt])
+colnames(data)[count_columnsref] <- new_colnames_ref
+colnames(data)[count_columnsalt] <- new_colnames_alt
+
+# Add the selected columns to the new dataset
+data_cnt_ref <- cbind(data_CNT, data[, count_columnsref, drop = FALSE])
+data_cnt_alt <- cbind(data_CNT, data[, count_columnsalt, drop = FALSE])
+
+# Transpose the data using the gather function
+data_cnt_ref_transposed <- gather(data_cnt_ref, key = "ID", value = "REF", -CHROM, -POS, -REF, -ALT)
+data_cnt_alt_transposed <- gather(data_cnt_alt, key = "ID", value = "ALT", -CHROM, -POS, -REF, -ALT)
+
+#merge files
+
+sample_info <- data.frame(
+  CHROM = data_cnt_alt_transposed$CHROM,
+  POS = data_cnt_alt_transposed$POS,
+  ID = data_cnt_alt_transposed$ID,
+  ALT = data_cnt_alt_transposed$ALT,  # Final column from data_cnt_alt_transposed
+  REF = data_cnt_ref_transposed$REF,  # Final column from data_cnt_ref_transposed
+  COV = data_cov_transposed$weight  # Final column from data_cov_transposed
+)
+
+#create time and year factors
+
+# Extract 'year' from the 'ID' column
+sample_info$year <- as.numeric(sub("^EA_(\\d+)_.*", "\\1", sample_info$ID))
+
+# Extract 'time' from the 'ID' column
+sample_info$time <- sub("^EA_\\d+_(.*)", "\\1", sample_info$ID)
+
+# Print the head of the updated 'sample_info' DataFrame
+head(sample_info)
+
+
+#allele frequency matrix
+
+new_data <- data.frame(
+  ID = sample_info$ID,
+  ALT_REF = paste(sample_info$ALT, sample_info$REF, sep = ",")
+)
+ colnames(new_data) <- c("ID","freq")
+
+ #pivot data
+#spread_data <- new_data %>%
+#  spread(ID, freq) %>%
+#  t()
+
+#save(list = ls(all.names = TRUE), file = "files_for_glm.Rdata")
+
+#this is taking too long so whilst script runs I'll try it another way as I also need to estimate number of chromosomes per pooled sample
+
+t12009 <- new_data[new_data$ID == "EA_2009_T1", ]
+t22009 <- new_data[new_data$ID == "EA_2009_T2", ]
+t32009 <- new_data[new_data$ID == "EA_2009_T3", ]
+t42009 <- new_data[new_data$ID == "EA_2009_T4", ]
+
+t12011 <- new_data[new_data$ID == "EA_2011_T1", ]
+t22011 <- new_data[new_data$ID == "EA_2011_T2", ]
+
+t12015 <- new_data[new_data$ID == "EA_2015_T1", ]
+t22015 <- new_data[new_data$ID == "EA_2015_T2", ]
+t32015 <- new_data[new_data$ID == "EA_2015_T3", ]
+t42015 <- new_data[new_data$ID == "EA_2015_T4", ]
+
+t12022 <- new_data[new_data$ID == "EA_2022_T1", ]
+t22022 <- new_data[new_data$ID == "EA_2022_T2", ]
+t32022 <- new_data[new_data$ID == "EA_2022_T3", ]
+t42022 <- new_data[new_data$ID == "EA_2022_T4", ]
+
+merged_data <- cbind(t12009$freq, t22009$freq, t32009$freq, t42009$freq,
+                    t12011$freq, t22011$freq,
+                    t12015$freq, t22015$freq, t32015$freq, t42015$freq,
+                    t12022$freq, t22022$freq, t32022$freq, t42022$freq)
+merged_data2 <- cbind(data$CHROM, data$POS, t12009$freq, t22009$freq, t32009$freq, t42009$freq,
+                    t12011$freq, t22011$freq,
+                    t12015$freq, t22015$freq, t32015$freq, t42015$freq,
+                    t12022$freq, t22022$freq, t32022$freq, t42022$freq)
+
+# Remove quotes from the matrix
+merged_data <- gsub("\"", "", merged_data)
+# Set column names
+colnames(merged_data) <- c("EA_2009_T1", "EA_2009_T2", "EA_2009_T3", "EA_2009_T4", 
+  "EA_2011_T1", "EA_2011_T2", 
+  "EA_2015_T1", "EA_2015_T2", "EA_2015_T3", "EA_2015_T4", 
+  "EA_2022_T1", "EA_2022_T2", "EA_2022_T3", "EA_2022_T4")
+
+colnames(merged_data2) <- c("chrom", "pos", "EA_2009_T1", "EA_2009_T2", "EA_2009_T3", "EA_2009_T4", 
+  "EA_2011_T1", "EA_2011_T2", 
+  "EA_2015_T1", "EA_2015_T2", "EA_2015_T3", "EA_2015_T4", 
+  "EA_2022_T1", "EA_2022_T2", "EA_2022_T3", "EA_2022_T4")
+# Remove the quotes
+merged_data <- gsub("\"", "", merged_data)
+merged_data <- as.matrix(merged_data)
+
+merged_data2 <- gsub("\"", "", merged_data2)
+merged_data2 <- as.matrix(merged_data2)
+
+# Specify the file path where you want to save the matrix
+file_path <- "AF_matrix.txt"  # Change this to your desired file path
+file_path2 <- "site_info.txt"  # Change this to your desired file path
+file_path3 <- "AF_matrix_with_chrom.txt"  # Change this to your desired file path
+# Save the matrix to a text file
+write.table(merged_data, file = file_path, quote = FALSE, sep = "\t")
+write.table(new_data, file = file_path2, quote = FALSE, sep = "\t")
+write.table(new_data, file = file_path3, quote = FALSE, sep = "\t")
+
+#count number of chromossomes per sample
+
+
+a <- sample_info[sample_info$ID == "EA_2009_T1", ]
+library(dplyr)
+n_distinct(a$CHROM)
+
+
+#####
+#chrom pos data
+
+chrom_poly_position_data1 <- a[,c(1:2)]
+file_path4 <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/chrom-poly-position-seasonal-data.txt"  # Change this to your desired file path
+# Save the matrix to a text file
+write.table(chrom_poly_position_data1, file = file_path4, quote = FALSE, sep = "\t", row.names= FALSE)
+
+
+###############GLM SCRIPT#######################
+
+
+# Script to run seasonal analysis on mel seasonal data
+#use early late (2011 t2=t4)
+#GLM loop#
+# Open the file for writing (creates a new file if it doesn't exist)
+#fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output.txt", "w")
+
+# Open the file for writing (creates a new file if it doesn't exist)
+fileout <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-time-uncorrected-coverage.txt", "w")
+fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/seasonal-glm-output-year-uncorrected-coverage.txt", "w")
+# Loop through each line in freq_matrix
+for (i in 1:nrow(freq_matrix)) {
+  # Fit the GLM model for the current line
+  out <- summary(glm(freq_matrix[i, ] ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = cov_matrix[i, ]))
+
+  # Store the summary
+  out2 <- out$coefficient[2,c(1,3,4)]
+  out3 <- out$coefficient[3,c(1,3,4)]
+
+  # Concatenate the values into a single line
+  output_line2 <- paste(out2,collapse = "\t")
+  output_line3 <- paste(out3,collapse = "\t")
+  # Write the results for the current line to the file as a single line
+  writeLines(output_line2, con = fileout)
+  writeLines(output_line3, con = fileout2)
+}
+
+
+```
