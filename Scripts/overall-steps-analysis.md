@@ -3446,6 +3446,7 @@ awk -F'\t' '$4 <= 0.05 { print }' full-table-glm-181023-t2-time-p.txt > signific
 awk 'NR==FNR{a[$1$2]=$0; next} ($1$2 in a){print a[$1$2]}' cov_with_chrom.txt significant-glm-181023-t2-time-p.txt > cov-sig-snps-glm-181023-t2-time-p.txt
 ```
 # now I will plot in R the the output
+#that is the final set for the GLM - do not get confused
 module load R/4.1.1
 module load gcc/10.2.0
 ```R
@@ -3664,7 +3665,7 @@ negative2009<- af2009 %>%
   filter(af_difference < 0)
 
 
-#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+#so here I go back to af2 and fetch the chroms that were increasing from start to end in 2009
 filtered_positive_2009 <- af2 %>%
   filter(chrom %in% positive2009$chrom)
 
@@ -3785,7 +3786,7 @@ ggplot(data = low10, aes(x = int, y = af, color = chrom)) +
 ```
 # now for the third file using 
 
-
+#THAT IS THE FINAL FILE
 ```bash
 awk '{print $3}' glm-181023-2009t2-time.txt > glm-181023-2009t2-time-p.txt
 awk -F'\t' '$1 <= 0.05 { count++ } END { print count }' glm-181023-2009t2-time-p.txt
@@ -3974,7 +3975,7 @@ positive2009<- af2009 %>%
 negative2009<- af2009 %>%
   filter(af_difference < 0)
 
-#so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
+#so here I go back to af2 and fetch the chroms that were increasing from start to end in 2009
 filtered_positive_2009 <- af2 %>%
   filter(chrom %in% positive2009$chrom)
 
@@ -4120,6 +4121,7 @@ colnames(af2) <- c("chrom", "2009.start", "2009.end",
   "2015.start", "2015.end",
   "2022.start","2022.end")
 
+#normalize everything for 2009
 normalized_af <- af2 %>%
   mutate(across(starts_with("EA_"), ~ . - 2009.start))
 
@@ -4572,7 +4574,206 @@ $baypassdir/g_baypass \
 -efile $inputdir/cov-baypass.txt \
 -poolsizefile $inputdir/haploid-size-baypass-txt \
 -outprefix $outputdir/correct-haplo -nthreads 10
-(base) [smomw573@nesh-fe3 scripts]$
+
+
+# dec 16th
+
+# core model
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=5
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=50G
+#SBATCH --time=30:00:00
+#SBATCH --job-name=bayenv-conv
+#SBATCH --output=baypass-core.out
+#SBATCH --error=baypass-core.err
+
+inputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants
+outputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass
+baypassdir=/gxfs_home/geomar/smomw573/software/baypass_public-master/sources
+
+$baypassdir/g_baypass \
+-gfile $inputdir/genobaypass \
+-poolsizefile $inputdir/haploid-size-baypass-txt \
+-d0yij 20 \
+-npilot 100 \
+-outprefix $outputdir/core-model -nthreads 10
+
+
+# Jan 08
+# standard covariate model
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=5
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=50G
+#SBATCH --time=48:00:00
+#SBATCH --job-name=bayenv-stand
+#SBATCH --output=baypass-stand.out
+#SBATCH --error=baypass-stand.err
+
+
+inputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants
+outputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass
+baypassdir=/gxfs_home/geomar/smomw573/software/baypass_public-master/sources
+
+$baypassdir/g_baypass \
+-gfile $inputdir/genobaypass \
+-efile $inputdir/cov-baypass.txt \
+-omegafile $outputdir/core-model_mat_omega.out \
+-poolsizefile $inputdir/haploid-size-baypass-txt \
+-covmcmc \
+-d0yij 20 \
+-outprefix $outputdir/stand-cov-model -nthreads 10 -seed 3
+
+
+# auxiliary model
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=5
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=50G
+#SBATCH --time=48:00:00
+#SBATCH --job-name=bayenv-aux
+#SBATCH --output=baypass-aux.out
+#SBATCH --error=baypass-aux.err
+
+
+inputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants
+outputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass
+baypassdir=/gxfs_home/geomar/smomw573/software/baypass_public-master/sources
+
+$baypassdir/g_baypass \
+-gfile $inputdir/genobaypass \
+-efile $inputdir/cov-baypass.txt.constrast \
+-omegafile $outputdir/core-model_mat_omega.out \
+-poolsizefile $inputdir/haploid-size-baypass-txt \
+-d0yij 20 \
+-outprefix $outputdir/aux-model -nthreads 10 -auxmodel
+
+
+
+# analysis of core model in R
+# Jan 09
+# following baypass manual
+
+ module load gcc12-env
+ module load R/4.3.1
+
+```R
+library(corrplot)
+library(ape)
+library(WriteXLS)
+library(RColorBrewer)
+#source the baypass R functions (check PATH)
+source("baypass_utils.R")
+#upload the estimated Omega matrix
+omega=as.matrix(read.table("core-model_mat_omega.out"))
+pop.names=c("EA_2009_T1","EA_2009_T2","EA_2011_T1","EA_2011_T2","EA_2015_T1","EA_2015_T2","EA_2022_T1","EA_2022_T2")
+dimnames(omega)=list(pop.names,pop.names)
+# Visualization of the matrix
+
+# Using SVD decomposition
+pdf("omega_plot_core-model.pdf")
+plot.omega(omega=omega,pop.names=pop.names)
+dev.off()
+# as a correlation plot
+require(corrplot)
+# Define your custom color palette (for example, using RColorBrewer palette)
+COL2(diverging = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu"), n = 200)
+
+# Calculate the correlation matrix from omega
+cor.mat = cov2cor(omega)
+
+# Plot the correlation matrix using corrplot with custom colors
+pdf("hm_omega_plot_core-model.pdf")
+corrplot(cor.mat, method = "color", mar = c(2, 1, 2, 2) + 0.1, col.lim=c(0,1),
+         main = expression("Correlation map based on" ~ hat(Omega)),
+         col = COL2('RdBu', 20))
+dev.off()
+# as a heatmap and hierarchical clustering tree (using the average agglomeration method)
+hclust.ave <- function(x) hclust(x, method="average")
+pdf("hm2_core-model.pdf")
+heatmap(1-cor.mat,hclustfun = hclust.ave,
+main=expression("Heatmap of "~hat(Omega)~"("*d[ij]*"=1-"*rho[ij]*")"))
+dev.off()
+
+#Estimates of the XtX differentiation measures (using the calibrated XtXst estimator)
+core.snp.res=read.table("core-model_summary_pi_xtx.out", h=T)
+#check behavior of the p-values associated to the XtXst estimator
+hist(10**(-1*core.snp.res$log10.1.pval.),freq=F,breaks=50)
+abline(h=1)
+
+
+core.snp.res.thresh <- core.snp.res$M_XtX
+thresh=quantile(core.snp.res.thresh,probs=0.99)
+
+layout(matrix(1:2,2,1))
+pdf("core-model-pvalues.pdf")
+plot(core.snp.res$XtXst)
+plot(core.snp.res$log10.1.pval.,ylab="XtX P-value (-log10 scale)")
+abline(h=thresh,lty=2)
+dev.off()
+#abline(h=3,lty=2) #0.001 p--value theshold
+thresh
+     99%
+8.323625
+
+write.table(core.snp.res.thresh, file="core-model.snp.scores.txt", sep="\t", quote=FALSE)
+```
+
+# 10 January 24
+# re-ran all models cause I had d0ij as 10 not 20.
+
+# c2 stats model
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=5
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=50G
+#SBATCH --time=24:00:00
+#SBATCH --job-name=bp-c2
+#SBATCH --output=baypass-c2.out
+#SBATCH --error=baypass-c2.err
+
+
+inputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants
+outputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass
+baypassdir=/gxfs_home/geomar/smomw573/software/baypass_public-master/sources
+
+$baypassdir/g_baypass \
+-gfile $inputdir/genobaypass \
+-efile $inputdir/cov-baypass.txt \
+-omegafile $outputdir/core-model_mat_omega.out \
+-poolsizefile $inputdir/haploid-size-baypass-txt \
+-d0yij 20 \
+-outprefix $outputdir/c2-model -nthreads 10 -contrastfile $inputdir/cov-baypass.txt
+
+
+# ok, at the end I ran two models for each (one with no seed option and one with a seed option), so I can compare the output.
+# not sure how to do that yet, but I will first print the qvalues for both C2 models, 
+# I also gave up using the st cov model as this is not the best fit for our dataset. So it will be between the auxilary and the C2 models.
+# okay there was something wrong with the file path (not sure why), so need to rerun all models. Will start the analysis tomorrow. 
+# 15.01.2024
 
 
 
@@ -4581,11 +4782,46 @@ $baypassdir/g_baypass \
 
 
 
+# visualising outputs
+
+ module load gcc12-env
+ module load R/4.3.1
+
+```R
+#st model
+
+covaux.snp.res=read.table("std-model_summary_betai.out",h=T)
+covaux.snp.xtx=read.table("std-model_summary_pi_xtx.out",h=T)$M_XtX
+graphics.off()
+layout(matrix(1:3,3,1))
+plot(covaux.snp.res$BF.dB.,xlab="SNP",ylab="BFmc (in dB)")
+plot(covaux.snp.res$M_Beta,xlab="SNP",ylab=expression(beta~"coefficient"))
+plot(covaux.snp.xtx,xlab="SNP",ylab="XtX corrected for SMS")
+
+#aux model
+
+bf=read.table("aux-model_summary_betai.out",h=T)
+hist(bf$BF.dB)
+# Filter rows where the 'BF.dB' column is greater than a certain value (let's say 20)
+filtered_data <- bf[bf$BF.dB > 20, ]
+
+# save data to check if they are associated to END or START
+write.table(filtered_data, file = "aux-bf.txt", sep = "\t", row.names = FALSE)
+
+```
+
+# Jan 12
+
+# calculating qvalue for pvalues from the constrast model 
 
 
+ module load R/4.3.1
+ ```R
+ install.packages("devtools")
+library("devtools")
+install_github("jdstorey/qvalue")
 
-
-
+devtools::install_github("hadley/devtools")
 
 
 
@@ -4890,6 +5126,8 @@ fileout2 <- file("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/G
 # Loop through each line in freq_matrix
 for (i in 1:nrow(freq_matrix)) {
   # Fit the GLM model for the current line
+
+  
   out <- summary(glm(freq_matrix[i, ] ~ popinfo_glm$time + popinfo_glm$Y, family = binomial, weights = cov_matrix[i, ]))
 
   # Store the summary
