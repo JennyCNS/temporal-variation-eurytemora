@@ -3907,7 +3907,7 @@ ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/mean-cov-p-v
 model <- lm(mean_cov ~ log, data = merged_data)
 summary(model)
 
-
+###that is the final and correct one, the others before were not right!
 # now I will check what the allele frequencies are doing!
 
 chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
@@ -3981,7 +3981,7 @@ filtered_positive_2009 <- af2 %>%
 
 #first ill check if the snps that are increasing in one year behave the same in others (visually, tomorrow ill do it manually with the overlap)
 #reorder chroms,
-filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
+filtered_positive_2009$chrom <- factor(filtered_positive_2009$chrom, levels = filtered_positive_2009$chrom[order(filtered_positive_2009$EA_2009_T4)])
 #again....
 # new columns
 
@@ -4017,9 +4017,7 @@ ggplot(data = transafp2009, aes(x = int, y = af, color = year)) +
  # scale_x_discrete(limits = int, labels = int, sep = " "))
 
 #same for negative
-filtered_positive_2009$chrom <- factor(filtered_positive_2009 $chrom, levels = filtered_positive_2009 $chrom[order(filtered_positive_2009 $EA_2009_T4)])
-#again....
-# new columns
+
 #so here I go back to af2 and fetch the chroms that were decreasing from start to end in 2009
 filtered_negative_2009 <- af2 %>%
   filter(chrom %in% negative2009$chrom)
@@ -5079,7 +5077,89 @@ dev.off()
 
 ```
 
+# recalculate MAF for the new vcf file
 
+module load htslib/1.10.2  bzip2/1.0.8  
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+VCF=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf.gz 
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/affinis.Atlantic.long_read_draft.Mar22.fasta
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/
+
+$GRENEDALF frequency --vcf-path $VCF --write-total-frequency --allow-file-overwriting --file-suffix maf-new-vcf-blabla --out-dir $OUTPUT
+$GRENEDALF frequency --vcf-path $VCF --write-total-counts --file-suffix -total-counts-new-vcf --out-dir $OUTPUT
+$GRENEDALF frequency --vcf-path $VCF --write-sample-alt-freq --file-suffix -alt-freq-new-vcf --out-dir $OUTPUT
+$GRENEDALF frequency --vcf-path $VCF --write-sample-ref-freq --file-suffix -ref-freq-new-vcf --out-dir $OUTPUT
+
+# reinstall grenedalf
+```bash
+module load gcc12-env/12.3.0
+module load gcc/12.3.0
+module load bzip2/1.0.8
+module load xz/5.4.1
+module load cmake/3.27.4
+
+rm -rf libdeflate
+git clone https://github.com/ebiggers/libdeflate.git
+cd libdeflate
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=/gxfs_home/geomar/smomw573/software/test_grenedalf_final/usr ..
+make
+make install
+cd ../..
+
+rm -rf grenedalf
+export CMAKE_PREFIX_PATH=/gxfs_home/geomar/smomw573/software/test_grenedalf_final/usr:$CMAKE_PREFIX_PATH
+export INCLUDE=/gxfs_home/geomar/smomw573/software/test_grenedalf_final/usr/include:$INCLUDE
+git clone --recursive https://github.com/lczech/grenedalf.git
+cd grenedalf
+make clean
+make
+```
+
+# 23 January 2024
+
+# okay now I finally got this table, so I will recalculate MAF
+
+```
+
+
+# open file in R
+```r
+freq <- read.csv("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/frequencymaf-new-vcf.csv", header=T)
+
+freq$MAF <- ifelse(freq$TOTAL.FREQ > 0.5, 1-freq$TOTAL.FREQ, freq$TOTAL.FREQ)
+freq$marker <- cbind(marker = 1:nrow(freq), freq)
+write.table(freq, file = "maf-new-vcf-corrected.txt", sep="\t", quote=FALSE, row.names=FALSE)
+hist(freq$TOTAL.FREQ,breaks=50)
+hist(freq$MAF,breaks=50)
+
+sum(freq$TOTAL.FREQ < 0.01)
+sum(freq$TOTAL.FREQ > 0.99)
+sum(freq$MAF < 0.01)
+sum(freq$MAF > 0.99)
+
+min(freq$MAF)
+max(freq$TOTAL.FREQ)
+sum(freq$TOTAL.FREQ < 0.01)
+#0
+sum(freq$TOTAL.FREQ > 0.99)
+#0
+sum(freq$MAF < 0.01)
+#0
+sum(freq$MAF > 0.99)
+#0
+min(freq$MAF)
+#0.01
+max(freq$MAF)
+#0.5
+max(freq$TOTAL.FREQ)
+#0.99
+sum(freq$MAF < 0.5)
+#1258257
+sum(freq$MAF < 0.05)
+#848949
 
 
 
@@ -5093,16 +5173,666 @@ python ~/seasonal_adaptation/scripts/filter_sync_by_snplist.py -i /gxfs_work1/ge
 ```
 
 
+# 29 January
+# installing poolseq
+
+conda load r_env
+R
+```R
+
+#install dependencies
+install.packages("data.table")
+install.packages("foreach")
+install.packages("stringi")
+install.packages("matrixStats")
+install.packages("Rcpp")
+
+library(data.table)
+library(foreach)
+library(stringi)
+library(matrixStats)
+library(Rcpp)
+
+#install poolSeq
+#wget https://github.com/ThomasTaus/poolSeq/archive/refs/tags/v0.3.5.tar.gz
+
+install.packages("/gxfs_home/geomar/smomw573/software/v0.3.5.tar.gz", repos=NULL, type="source")
+
+library(poolSeq)
+
+#estimated number of generations in each year
+#assuming generational turnover of 2-weeks
+#2009: 2 generations
+#2011: 1 generations
+#2015: 4 generations
+#2022: 4 generations
+
+
+```
+# pull counts REF ALT alleles from vcf
+pre-sync-file.R
+
+```R
+library(stringr)
+library(R.utils)
+
+gunzip("final_20230810.vcf.gz", remove=FALSE)
+
+setwd("~/Jenny-Eurytemora_affinis/AF-GLM")
+
+#zipF<-file.choose("final_20230810.vcf.gz") # lets you choose a file and save its file path in R (at least for windows)
+#outDir<-("~/Jenny-Eurytemora_affinis/AF-GLM") # Define the folder where the zip file should be unzipped to 
+#unzip(zipF,exdir=outDir) 
+
+dat <- read.table("final_20230810.vcf", header=FALSE)
+head(dat)
+
+#create new dataset with the info reid needs
+
+colnames(dat) <- c("chrom","pos","pres","ref","alt","v6","v7","v8","v9",
+                   "2009_t1","2009_t2", "2009_t3", "2009_t4",
+                   "2011_t1","2011_t2",
+                   "2015_t1", "2015_t2", "2015_t3", "2015_t4",
+                   "2022_t1", "2022_t2", "2022_t3", "2022_t4")
+filtdat <- dat[c("chrom","pos","ref","alt",
+               "2009_t1","2009_t2", "2009_t3", "2009_t4",
+               "2011_t1","2011_t2",
+               "2015_t1", "2015_t2", "2015_t3", "2015_t4",
+               "2022_t1", "2022_t2", "2022_t3", "2022_t4")]
+head(filtdat)
+columns_to_process <- 5:23
+
+# Loop through each column and update the values
+for (col in columns_to_process) {
+  # Extract the numbers following the first ":"
+  filtdat[, col] <- str_extract(filtdat[, col], ":(\\d+,\\d+):")
+  filtdat[, col] <- gsub(":", "", filtdat[, col])
+}
+
+filtdat <- dat[c("chrom","pos","ref","alt",
+                 "2009_t2",  "2009_t4",
+                 "2011_t1","2011_t2",
+                 "2015_t1", "2015_t4",
+                 "2022_t1", "2022_t4")]
+# Print the updated dataset
+head(filtdat)
+write.table(filtdat, "count_alleles_finalvcf.txt", sep="\t", quote=FALSE, row.names=FALSE)
+install.packages("stringr")
+install.packages("R.utils")
+library(stringr)
+library(R.utils)
+
+gunzip("final_20230810.vcf.gz", remove=FALSE)
+
+setwd("~/Jenny-Eurytemora_affinis/AF-GLM")
+
+#zipF<-file.choose("final_20230810.vcf.gz") # lets you choose a file and save its file path in R (at least for windows)
+#outDir<-("~/Jenny-Eurytemora_affinis/AF-GLM") # Define the folder where the zip file should be unzipped to 
+#unzip(zipF,exdir=outDir) 
+
+dat <- read.table("final_20230810.vcf", header=FALSE)
+head(dat)
+
+#create new dataset with the info reid needs
+
+colnames(dat) <- c("chrom","pos","pres","ref","alt","v6","v7","v8","v9",
+                   "2009_t1","2009_t2", "2009_t3", "2009_t4",
+                   "2011_t1","2011_t2",
+                   "2015_t1", "2015_t2", "2015_t3", "2015_t4",
+                   "2022_t1", "2022_t2", "2022_t3", "2022_t4")
+filtdat <- dat[c("chrom","pos","ref","alt",
+               "2009_t1","2009_t2", "2009_t3", "2009_t4",
+               "2011_t1","2011_t2",
+               "2015_t1", "2015_t2", "2015_t3", "2015_t4",
+               "2022_t1", "2022_t2", "2022_t3", "2022_t4")]
+
+#now fix the comma
+# Columns 5 onwards
+columns_to_process <- 5:ncol(filtdat)
+new_dataset <- filtdat[, 1:4]
+# Loop through each column and update the values
+for (col in columns_to_process) {
+  # Convert the column to character
+  filtdat[, col] <- as.character(filtdat[, col])
+  
+  # Split the column based on the comma
+  split_values <- strsplit(filtdat[, col], ",")
+  
+  # Create new columns with the split values
+  new_col_name_ref <- paste0(col, "_ref")
+  new_col_name_alt <- paste0(col, "_alt")
+  
+  new_dataset[, new_col_name_ref] <- sapply(split_values, function(x) as.numeric(x[1]))
+  new_dataset[, new_col_name_alt] <- sapply(split_values, function(x) as.numeric(x[2]))
+}
+# Print the updated dataset
+head(filtdat)
+# Loop through each column and update the values
+for (col in columns_to_process) {
+  # Split the column based on the comma
+  split_values <- strsplit(as.character(filtdat[, col]), ",")
+  
+  # Create two new columns with the split values
+  filtdat[, paste0(col, "REF")] <- sapply(split_values, function(x) x[1])
+  filtdat[, paste0(col, "ALT")] <- sapply(split_values, function(x) x[2])
+  
+  # Remove the original column
+  filtdat[, col] <- NULL
+}
+
+head(filtdat)
+header <- names(new_dataset)
+header
+
+colnames(new_dataset) <- c("chrom",  "pos" ,   "ref" ,   "alt"  ,  
+                           "2009_t1_ref" , "2009_t1_alt" , "2009_t2_ref" , "2009_t2_alt",  "2009_t3_ref", 
+                           "2009_t3_alt",  "2009_t4_ref",  "2009_t4_alt", 
+                           "2011_t1_ref" , "2011_t1_alt" , "2011_t2_ref" ,"2011_t2_alt" ,
+                           "2015_t1_ref", "2015_t1_alt",
+                           "2015_t2_ref", "2015_t2_alt" ,"2015_t3_ref" ,"2015_t3_alt", "2015_t4_ref" ,"2015_t4_alt", 
+                           "2022_t1_ref", "2022_t1_alt" ,"2022_t2_ref",
+                           "2022_t2_alt", "2022_t3_ref" ,"2022_t3_alt", "2022_t4_ref" ,"2022_t4_alt")
+#data I want
+
+final_df <-new_dataset[c("chrom",  "pos" ,   "ref" ,   "alt"  ,  
+                         "2009_t2_ref" , "2009_t2_alt",  "2009_t4_ref",  "2009_t4_alt", 
+                         "2011_t1_ref" , "2011_t1_alt" , "2011_t2_ref" ,"2011_t2_alt" ,
+                         "2015_t1_ref", "2015_t1_alt", "2015_t4_ref" ,"2015_t4_alt", 
+                         "2022_t1_ref", "2022_t1_alt" ,"2022_t4_ref", "2022_t4_alt")]
+write.table(final_df, "count_alleles.txt", sep="\t", row.names=FALSE, quote=FALSE)
+
+```
+# python script to convert to sync file
+
+# to_sync.py
+
+```python
+import argparse
+from argparse import RawTextHelpFormatter
+
+parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,description="""description""")
+parser.add_argument('--input', required=True, dest='Input', type=str, help="Input file in chrom/pos/ref/alt/allele_counts-comma separated in single columns for each pop format")
+parser.add_argument('--output', required=True, dest='Output', type=str, help="Output file in sync format.")
+
+args = parser.parse_args()
+
+
+InputFile=open(args.Input,"r")
+OutputFile=open(args.Output,"w")
+
+base_dict = {'A':0, 'T':1, 'C':2, 'G':3}
+
+###
+# define conversion function
+
+def convert_to_sync(ref_allele, var_allele, varscan_input):
+    ct_ref=varscan_input.split(",")[0]
+    ct_var=varscan_input.split(",")[1]
+    sync_line = "0:0:0:0:0:0".split(":")
+    sync_line[base_dict.get(ref)]=ct_ref
+    sync_line[base_dict.get(var)]=ct_var
+    return ":".join(sync_line)
+
+
+firstline = True
+
+for line in InputFile:
+
+    if firstline:    #skip first line
+        firstline = False
+        continue
+
+    line=line.split('\n')[0] #drop line break
+    cols=line.split('\t')
+
+    ref=cols[2]
+    var=cols[3]
+
+    line_out = []
+
+    for pop_input in cols[4:]:
+        if len(line_out) == 0:
+            line_out = convert_to_sync(ref, var, pop_input)
+
+        else:
+            line_out = line_out + "\t" + convert_to_sync(ref, var, pop_input)
+
+    line_out = "\t".join(cols[0:3]) + "\t" + line_out
+
+    OutputFile.write(line_out+'\n')
+
+```
+
+module load python/3.11.5
+
+python3 to.py --input count_alleles_finalvcf.txt --output output_sync.txt
+
+# trial poolSeq
+#subset file
+awk '{print $1 "\t" $2 "\t" $3 "\t" $5 "\t" $7 "\t" $8 "\t" $9 "\t" $10 "\t" $13 "\t" $14 "\t" $17}' output_sync.txt > subset.sync
+
+```R
+library(poolSeq)
+#     allele frequency trajectories. Columns correspond to the time
+#     points defined in ‘t’ and rows to individual replicates. If only
+#     one replicate should be simulated a numeric vector is returned
+#     instead of a matrix.#
+#
+#     Allele frequencies in the output are guaranteed to be ordered
+#     increasing by the number of generations.
+#
+#Author(s):
+#
+#     Thomas Taus
+#
+#Examples:
+#
+#     # simulate allele frequency trajectories of individual loci using the Wright-Fisher model (diploid individuals)
+#     Ne <- 200
+#     gen <- seq(0, 100, by=10)
+#     alleleFreqs <- wf.traj(p0=rep(0.5, times=500), Ne=Ne, t=gen)
+#     # look at a subset of the generated data
+#     head(alleleFreqs)
+#
+#     # plot allele frequency trajectories
+#     plot(1, type="n", xlim=c(0, max(gen)), ylim=c(0, 1), main="Neutral Genetic Drift", xlab="Generation", ylab="Allele frequency (%)")
+#     for(r in 1:nrow(alleleFreqs)) {
+#       lines(gen, alleleFreqs[r,])
+#     }
+#
+#     # simulate allele frequency trajectories including selection
+#     alleleFreqs <- wf.traj(p0=rep(0.05, times=500), Ne=Ne, t=gen, s=0.1, h=0.5)
+#
+#     # plot results
+#     plot(1, type="n", xlim=c(0, max(gen)), ylim=c(0, 1), main="Positive Selection", xlab="Generation", ylab="Allele frequency (%)")
+#     for(r in 1:nrow(alleleFreqs)) {
+#       lines(gen, alleleFreqs[r,])
+#     }
+#
+#     # add the trajectory under selection for a population of infinite size (no random genetic drift)
+#     lines(gen, wf.traj(p0=0.05, Ne=NA, t=gen, s=0.1, h=0.5), col="red")
 
 
 
 
+mySync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/output_sync.txt", polarization="reference", 
+  gen=c(0,1,2,3,0,1,0,1,2,4,0,1,2,3),repl=c(1,1,1,1,2,2,3,3,3,3,4,4,4,4))
+
+subSync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/subset.sync", polarization="reference", 
+  gen=c(2,4,1,2,1,4,1,3),repl=c(1,1,2,2,3,3,4,4)) #import only the start/end points of interest
+
+listSync <- list(mySync, subSync)
+names(listSync) <- c("mySync", "subSync")
+#   af(sync, chr, pos, repl, gen)
+# af(mySync, "LS387016.1", 58, 1, 0)
+# coverage(mySync, "LS387016.1", 58, 1, 0)
+# af.traj(mySync, "LS387016.1", 58, 1)
+
+
+## estimate effective population size:
+
+af <- as.data.frame(subSync@alleles)
+estNe_2009.1 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="JR.planII")
+estNe_2009.2 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="W.planII")
+estNe_2009.3 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.planII")
+estNe_2009.4 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.alt.1step.planII")
+
+estNe_2011.1 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="JR.planII")
+estNe_2011.2 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.planII")
+estNe_2011.3 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="W.planII")
+estNe_2011.4 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.alt.1step.planII")
+
+estNe_2015.1 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="JR.planII")
+estNe_2015.2 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="W.planII")
+estNe_2015.3 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="P.planII")
+estNe_2015.4 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="P.alt.1step.planII")
+
+estNe_2022.1 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="JR.planII")
+estNe_2022.2 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="W.planII")
+estNe_2022.3 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="P.planII")
+estNe_2022.4 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="P.alt.1step.planII")
+
+
+#subset
+af.sub <- af[c(1:30),]
+af <- af.sub
+estNe_2009.5 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="JR.planII")
+estNe_2009.6 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="W.planII")
+estNe_2009.7 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.planII")
+estNe_2009.8 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.alt.1step.planII")
+
+estNe_2011.5 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="JR.planII")
+estNe_2011.6 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.planII")
+estNe_2011.7 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="W.planII")
+estNe_2011.8 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.alt.1step.planII")
+
+estNe_2015.5 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="JR.planII")
+estNe_2015.6 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="W.planII")
+estNe_2015.7 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="P.planII")
+estNe_2015.8 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="P.alt.1step.planII")
+
+estNe_2022.5 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="JR.planII")
+estNe_2022.6 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="W.planII")
+estNe_2022.7 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="P.planII")
+estNe_2022.8 <- estimateNe(p0=af[,19], pt=af[,21], cov0=af[,20], covt=af[,22], ploidy=2,t=3, poolSize=c(50, 50),method="P.alt.1step.planII")
+
+
+
+#hand trail to try understand what is going on with the different Ne estimators.
+#Not really used for the analysis, but to decided which one to proceed with
+
+# remove SNPs for which Ne cannot/should not be estimated
+
+truncAF=NA
+ploidy=2
+
+#terms
+p0=c(af$F1.R1.freq)
+pt=c(af$F3.R1.freq)
+cov0 <- af[,8]
+covt <- af[,10]
+
+estimateNe <- function(p0, pt, cov0, covt, t, ploidy=2, truncAF=NA, method="P.planI", Ncensus=NA, poolSize=rep(Ncensus, times=2), asList=FALSE))
+  xi <- p0[keep]
+  yi <- pt[keep]
+  zi = (xi + yi)/2
+  n = length(xi)
+  # coverage is divided by 2, because later 2*S0, 2*St correction term will be used
+  s0 <- cov0[keep]
+  st <- covt[keep]
+
+#Waples method - didnt work
+
+Fc <- ((xi-yi)^2)/(zi-xi*yi)
+t=2
+count = Fc - ((1/cov1) + (1/cov2))
+total = sum(count)
+keep <- checkSNP(p0, pt, cov0, covt, truncAF=truncAF)
+
+sum <- Fc - (1/s0 + 1/st)
+Fc_planII <- (1/n)*sum( Fc - (1/s0 + 1/st))
+final <- -t/(ploidy*log(1-Fc_planII))
+
+
+#Agnes Jonas method (also didnt work)
+C0i <- 1/s0 + 1/(2*50) - 1/(s0*2*50)
+Cti <- 1/st + 1/(2*50) - 1/(st*2*50)
+
+Ft <- (xi - yi)^2 - (zi-xi*yi)*( C0i + Cti ) / (zi-xi*yi) * (1 - Cti)
+      res <- c(res, Np.planII=-t/(ploidy*log(1-Ft)))
+
+#what are the allele freq of positive Fts
+sum(Ft > 0)
+pospos <- which(Ft > 0)
+values_xi <- xi[pospos]
+values_yi <- yi[pospos]
+#they all vary around 20%
+#now I got to figure out why
+
+
+##table with output
+#methods P.alt.1step.planII, W, JR and P
+# Initialize an empty data frame
+myTable <- data.frame(Variable_Name = character(), Year = character(), Ne_2009 = numeric(), Ne_2011 = numeric(), Ne_2015 = numeric(), Ne_2022 = numeric())
+
+# Loop through years and variables
+for (year in c("2009", "2011","2015", "2022")) {
+  for (i in 1:4) {
+    var_name <- paste0(year, ".", i)
+    value <- get(paste0("estNe_", var_name))
+    
+    # Add to the data frame
+    myTable <- rbind(myTable, data.frame(Variable_Name = var_name, Year = year, Value = value))
+  }
+}
+table2 <- myTable[c("Year", "Value")]
+write.table(file = "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/table_output_ne_pooseq.txt", table2, sep = "\t", quote =FALSE)
+
+#estimate variance of p0 and pt for the different years
+> var(af$F1.R1.freq)
+[1] 0.02710909
+> var(af$F3.R1.freq)
+[1] 0.02681922
+> var(af$F1.R2.freq)
+[1] 0.02685312
+> var(af$F2.R2.freq)
+[1] 0.02686902
+> var(af$F1.R3.freq)
+[1] 0.02683984
+> var(af$F4.R3.freq)
+Error in var(af$F4.R3.freq) : 'x' is NULL
+> var(af$F3.R3.freq)
+[1] 0.0268215
+> var(af$F1.R4.freq)
+[1] 0.02678547
+> var(af$F4.R4.freq)
+[1] 0.02678056
+
+> mean(af$F1.R1.freq)
+[1] 0.9116324
+>
+> mean(af$F3.R1.freq)
+[1] 0.9115647
+> mean(af$F1.R2.freq)
+[1] 0.9120435
+> mean(af$F2.R2.freq)
+[1] 0.911593
+> mean(af$F1.R3.freq)
+[1] 0.9115756
+> mean(af$F4.R3.freq)
+[1] NA
+Warning message:
+In mean.default(af$F4.R3.freq) :
+  argument is not numeric or logical: returning NA
+> mean(af$F3.R3.freq)
+[1] 0.9117126
+> mean(af$F1.R4.freq)
+[1] 0.9119215
+> mean(af$F4.R4.freq)
+[1] 0.9113805
+
+ mean(af$F1.R1.cov)
+[1] 203.402
+> mean(af$F3.R1.cov)
+[1] 341.0051
+> mean(af$F1.R2.cov)
+[1] 265.4084
+> mean(af$F2.R2.cov)
+[1] 340.0921
+> mean(af$F1.R3.cov)
+[1] 381.3563
+> mean(af$F3.R3.cov)
+[1] 397.2056
+> mean(af$F1.R4.cov)
+[1] 351.3534
+> mean(af$F4.R4.cov)
+[1] 383.9032
+
+
+> var(af$F1.R1.cov)
+[1] 19737.84
+> var(af$F3.R1.cov)
+[1] 55106.82
+> var(af$F1.R2.cov)
+[1] 34870.97
+> var(af$F2.R2.cov)
+[1] 54461.01
+> var(af$F1.R3.cov)
+[1] 69002.83
+> var(af$F3.R3.cov)
+[1] 73365.29
+> var(af$F1.R4.cov)
+[1] 59558.41
+> var(af$F4.R4.cov)
+[1] 69708.34
+
+
+```
+# 08.02.2024
+## okay, so based on the results with poolSeq, trials and literature research, we decided to follow the analysis using the Jorde 2007 Ne estimator.
+## these values will be used as an input for estimating drift, and consequently the significance values for our analysis. 
+the values are 
+2009  2350.29109
+2011  1153.76906 
+2015  13258.16667
+2022  2055.77859
+    
+
+Now I have to run the simulations using the Ne values
+
+```R
+library(poolSeq)
+#make one file for each pop
+
+subSync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/subset.sync", polarization="reference", 
+  gen=c(1,3,1,2,1,4,1,3),repl=c(1,1,2,2,3,3,4,4)) #import only the start/end points of interest
+
+t1Sync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/2009.sync", polarization="reference", 
+  gen=c(2,3),repl=c(1,2)) #import only the start/end points of interest
+
+t2Sync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/2011.sync", polarization="reference", 
+  gen=c(1,2),repl=c(1,2)) #import only the start/end points of interest
+
+t3Sync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/2015.sync", polarization="reference", 
+  gen=c(1,4),repl=c(1,2)) #import only the start/end points of interest
+
+t4Sync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/2022.sync", polarization="reference", 
+  gen=c(1,3),repl=c(1,2)) #import only the start/end points of interest
+
+
+
+listSync <- list(subSync, t1Sync, t2Sync, t3Sync, t4Sync)
+names(listSync) <- c("subSync", "t1Sync", "t2Sync", "t3Sync", "t4Sync")
+#   af(sync, chr, pos, repl, gen)
+# af(mySync, "LS387016.1", 58, 1, 0)
+# coverage(mySync, "LS387016.1", 58, 1, 0)
+# af.traj(mySync, "LS387016.1", 58, 1)
+
+
+# run simulation based on the starting allele frequency of each year (check this correlation)
+## Ne is based on above
+# mean of AA af
+
+af_2009 <- af(t1Sync,,, 1, 2)
+af_2011 <- af(t2Sync,,, 1, 1)
+af_2015 <- af(t3Sync,,, 1, 1)
+af_2022 <- af(t4Sync,,, 1, 1)
+
+startaf_2009 <- data.frame(snp = names(af_2009), af = as.numeric(af_2009))
+startaf_2011 <- data.frame(snp = names(af_2011), af = as.numeric(af_2011))
+startaf_2015 <- data.frame(snp = names(af_2015), af = as.numeric(af_2015))
+startaf_2022 <- data.frame(snp = names(af_2022), af = as.numeric(af_2022))
+
+
+#skip this bit and jump to simulation
+######################################
+
+
+# why do they have different n of snps
+
+#nrow(startaf_2015)
+#1200996
+#nrow(startaf_2022)
+#1200329
+#nrow(startaf_2011)
+#1199103
+#nrow(startaf_2009)
+#1197508
+
+library(dplyr)
+
+startaf <- merge(startaf_2009, startaf_2011, by = "snp", all = TRUE)
+startaf <- merge(startaf, startaf_2015, by = "snp", all = TRUE)
+startaf <- merge(startaf, startaf_2022, by = "snp", all = TRUE)
+
+#keep only the ones which are present in all samples
+
+# Check the number of rows
+nrow(startaf)
+
+startaf$all_present <- rowSums(!is.na(startaf[, grepl("^af", names(startaf))])) == length(grep("^af", names(startaf)))
+
+
+sum(!startaf$all_present)
+startaf_filtered <- startaf[startaf$all_present, ]
+
+colnames(startaf_filtered) <- c("snp", "af.x", "af.y", "af.z", "af.w", "all_present")
+summary(lm(af.x ~ af.y + af.z + af.w, data = startaf_filtered))
+
+#check if this model actually makes sense
+Call:
+lm(formula = af.x ~ af.y + af.z + af.w, data = startaf_filtered)
+
+Residuals:
+     Min       1Q   Median       3Q      Max
+-0.68018 -0.00968  0.00085  0.01053  0.66982
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)
+(Intercept) 0.0011137  0.0001198   9.297   <2e-16 ***
+af.y        0.2817861  0.0009984 282.247   <2e-16 ***
+af.z        0.4177283  0.0010782 387.438   <2e-16 ***
+af.w        0.2990450  0.0010806 276.741   <2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.02313 on 1190474 degrees of freedom
+Multiple R-squared:  0.9804,    Adjusted R-squared:  0.9804
+F-statistic: 1.986e+07 on 3 and 1190474 DF,  p-value: < 2.2e-16
+
+#now simulate the data
+
+#so I will simulate with t0 of each year being the starting point
+
+##
+
+
+
+###############################
+###############################
+
+# simulation for 2009
+#first set the sim.R script in which I simulate the AF
+
+#
+
+
+```
 
 
 
 
+# estimate pi with grenedalf
+
+# run job 02.02.2024
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=50G
+#SBATCH --time=48:00:00
+#SBATCH --job-name=bp-c2
+#SBATCH --output=genome-diversity.out
+#SBATCH --error=genome-diversity.err
+
+module load gcc12-env/12.3.0
+module load gcc/12.3.0
+module load bzip2/1.0.8
+module load xz/5.4.1
+module load cmake/3.27.4
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+MPILEUP=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/all.mpileup-excluding20072011
+GENOME=/gxfs_work1/geomar/smomw573/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta.gz 
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/
 
 
+$GRENEDALF diversity --pileup-path $MPILEUP --filter-sample-min-count 1 --reference-genome-fasta-file $GENOME --allow-file-overwriting --window-type genome --pool-sizes 50 --measure theta-pi --file-prefix diversity- --out-dir $OUTPUT
 
 
 
