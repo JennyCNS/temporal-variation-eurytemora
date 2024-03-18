@@ -677,7 +677,11 @@ d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
         #    legend.background = element_blank(),
         #legend.box.background = element_rect(colour = "black"),
         theme(legend.title = element_blank()) +
-       # theme(legend.text=element_text(size=8))+
+        theme(legend.text=element_text(size=16),
+          axis.title.x = element_text(size = 28),
+          axis.text.x= element_text(size=26),
+          axis.text.y= element_text(size=26),   # Adjust x-axis label size
+          axis.title.y = element_text(size = 28))+
         #theme(legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))+
 #        ggtitle("F1")+
 guides(fill=guide_legend(override.aes=list(
@@ -685,7 +689,7 @@ guides(fill=guide_legend(override.aes=list(
         #fill=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3" )),order = 2),
     fill=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A")),order = 2))
 
-ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_allsamples.pdf",d, w=5.5, h=3.7)
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_allsamples.pdf",d, w=6, h=4)
 
 
 #exclude samples 2009 T1 and 2015 T3
@@ -736,7 +740,7 @@ data$gen <- factor(data$gen, levels = c("T1","T2", "T3", "T4"))
 data$PC2 <- data$PC2*-1
 
 d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
-        geom_point(size=4.5) +
+        geom_point(size=16) +
         xlab(paste0("PC1: ",percentVar[1],"% variance")) +
         ylab(paste0("PC2: ",percentVar[2],"% variance")) +
         theme_bw() +
@@ -749,7 +753,12 @@ d <- ggplot(data, aes(PC1, PC2, fill=Line, shape=gen)) +
         #theme(legend.position = c(0.83,0.85),
         #    legend.background = element_blank(),
         #legend.box.background = element_rect(colour = "black"),
-        theme(legend.title = element_blank()) +
+         theme(legend.title = element_blank()) +
+         theme(legend.text=element_text(size=18),
+          axis.title.x = element_text(size = 28),
+          axis.text.x= element_text(size=28),
+          axis.text.y= element_text(size=28),   # Adjust x-axis label size
+          axis.title.y = element_text(size = 28))+
        # theme(legend.text=element_text(size=8))+
         #theme(legend.background = element_rect(colour = 'black', fill = 'white', linetype='solid'))+
 #        ggtitle("F1")+
@@ -758,7 +767,8 @@ guides(fill=guide_legend(override.aes=list(
         #fill=c('steelblue1','steelblue','grey45', "darkorchid2", "firebrick3" )),order = 2),
     fill=c("#D3DDDC",'#6699CC',"#F2AD00","#00A08A")),order = 2))
 
-ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_excluding20092015.pdf",d, w=5.5, h=3.7)
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_excluding20092015.pdf",d, w=10, h=7.8)
+ggsave("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/figures/pca_afs_excluding20092015.jpg",d, dpi=300, w=10, h=7.8)
 
 ######################################
 #repeat analysis with non-scaled data#
@@ -4805,7 +4815,7 @@ write.table(filtered_data, file = "aux-bf.txt", sep = "\t", row.names = FALSE)
 # Jan 12
 
 # calculating qvalue for pvalues from the constrast model 
-
+# done this in my pc
 
  module load R/4.3.1
  ```R
@@ -5456,7 +5466,7 @@ library(poolSeq)
 
 
 mySync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/output_sync.txt", polarization="reference", 
-  gen=c(0,1,2,3,0,1,0,1,2,4,0,1,2,3),repl=c(1,1,1,1,2,2,3,3,3,3,4,4,4,4))
+  gen=c(1,2,3,4,1,2,1,2,3,4,1,2,3,4),repl=c(1,1,1,1,2,2,3,3,3,3,4,4,4,4))
 
 subSync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/subset.sync", polarization="reference", 
   gen=c(2,4,1,2,1,4,1,3),repl=c(1,1,2,2,3,3,4,4)) #import only the start/end points of interest
@@ -5477,10 +5487,10 @@ estNe_2009.2 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploi
 estNe_2009.3 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.planII")
 estNe_2009.4 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.alt.1step.planII")
 
-estNe_2011.1 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="JR.planII")
-estNe_2011.2 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.planII")
-estNe_2011.3 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="W.planII")
-estNe_2011.4 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.alt.1step.planII")
+estNe_2011.1 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="JR.planII")
+estNe_2011.2 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="P.planII")
+estNe_2011.3 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="W.planII")
+estNe_2011.4 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="P.alt.1step.planII")
 
 estNe_2015.1 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="JR.planII")
 estNe_2015.2 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="W.planII")
@@ -5501,10 +5511,10 @@ estNe_2009.6 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploi
 estNe_2009.7 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.planII")
 estNe_2009.8 <- estimateNe(p0=af[,7], pt=af[,9], cov0=af[,8], covt=af[,10], ploidy=2, t=2, poolSize=c(50, 50), method="P.alt.1step.planII")
 
-estNe_2011.5 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="JR.planII")
-estNe_2011.6 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.planII")
-estNe_2011.7 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="W.planII")
-estNe_2011.8 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=3, poolSize=c(50, 50), method="P.alt.1step.planII")
+estNe_2011.5 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="JR.planII")
+estNe_2011.6 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="P.planII")
+estNe_2011.7 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="W.planII")
+estNe_2011.8 <- estimateNe(p0=af[,11], pt=af[,13], cov0=af[,12], covt=af[,14],ploidy=2, t=1, poolSize=c(50, 50), method="P.alt.1step.planII")
 
 estNe_2015.5 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="JR.planII")
 estNe_2015.6 <- estimateNe(p0=af[,15], pt=af[,17], cov0=af[,16], covt=af[,18],ploidy=2, t=4, poolSize=c(50, 50), method="W.planII")
@@ -5671,12 +5681,21 @@ In mean.default(af$F4.R3.freq) :
 # 08.02.2024
 ## okay, so based on the results with poolSeq, trials and literature research, we decided to follow the analysis using the Jorde 2007 Ne estimator.
 ## these values will be used as an input for estimating drift, and consequently the significance values for our analysis. 
-the values are 
-2009  2350.29109
-2011  1153.76906 
-2015  13258.16667
-2022  2055.77859
-    
+
+#estNe_2009
+#Njr.planII
+#2350.291
+#estNe_2011
+#Njr.planII 
+#384.5897
+#estNe_2015
+#estNe_2015
+#Njr.planII
+#13258.17
+#estNe_2022
+#Njr.planII
+#2055.779
+
 
 Now I have to run the simulations using the Ne values
 
@@ -5685,7 +5704,7 @@ library(poolSeq)
 #make one file for each pop
 
 subSync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/subset.sync", polarization="reference", 
-  gen=c(1,3,1,2,1,4,1,3),repl=c(1,1,2,2,3,3,4,4)) #import only the start/end points of interest
+  gen=c(2,4,1,2,1,4,1,3),repl=c(1,1,2,2,3,3,4,4)) #import only the start/end points of interest
 
 t1Sync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/2009.sync", polarization="reference", 
   gen=c(2,3),repl=c(1,2)) #import only the start/end points of interest
@@ -5700,6 +5719,36 @@ t4Sync <- read.sync(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/an
   gen=c(1,3),repl=c(1,2)) #import only the start/end points of interest
 
 
+#checking why number of alleles is different across the datasets
+nrow(df1)
+nrow(df2)
+df1 <- subSync@alleles
+df2 <- t1Sync@alleles
+
+names1 = set(df1['posID'])
+names2 = set(df2['posID'])
+head(df1$posID)
+names1 <- df1$posID
+names2 <- df2$posID
+common_names <- intersect(names1, names2)
+unique_namesdf1 <- setdiff(names1, names2)
+unique_namesdf2 <- setdiff(names2, names1)
+
+unique_namesdf1
+str(unique_namesdf1)
+name_to_search <- "Scz6wRH_1034;HRSCAF=1162.14997"
+
+# Check if the name is present in df1 and get the corresponding rows
+matching_rows <- df1[df1$posID == name_to_search, ]
+matching_rows
+name_to_search <- "Scz6wRH_9;HRSCAF=61.48321"
+name_to_search <- "Scz6wRH_1034;HRSCAF=1162.14997"
+
+# Check if the name is present in df1 and get the corresponding rows
+matching_rows <- df1[df1$posID == name_to_search, ]
+matching_rows
+
+#fixed alleles
 
 listSync <- list(subSync, t1Sync, t2Sync, t3Sync, t4Sync)
 names(listSync) <- c("subSync", "t1Sync", "t2Sync", "t3Sync", "t4Sync")
@@ -5713,76 +5762,10 @@ names(listSync) <- c("subSync", "t1Sync", "t2Sync", "t3Sync", "t4Sync")
 ## Ne is based on above
 # mean of AA af
 
-af_2009 <- af(t1Sync,,, 1, 2)
-af_2011 <- af(t2Sync,,, 1, 1)
-af_2015 <- af(t3Sync,,, 1, 1)
-af_2022 <- af(t4Sync,,, 1, 1)
-
-startaf_2009 <- data.frame(snp = names(af_2009), af = as.numeric(af_2009))
-startaf_2011 <- data.frame(snp = names(af_2011), af = as.numeric(af_2011))
-startaf_2015 <- data.frame(snp = names(af_2015), af = as.numeric(af_2015))
-startaf_2022 <- data.frame(snp = names(af_2022), af = as.numeric(af_2022))
-
-
-#skip this bit and jump to simulation
-######################################
-
-
-# why do they have different n of snps
-
-#nrow(startaf_2015)
-#1200996
-#nrow(startaf_2022)
-#1200329
-#nrow(startaf_2011)
-#1199103
-#nrow(startaf_2009)
-#1197508
-
-library(dplyr)
-
-startaf <- merge(startaf_2009, startaf_2011, by = "snp", all = TRUE)
-startaf <- merge(startaf, startaf_2015, by = "snp", all = TRUE)
-startaf <- merge(startaf, startaf_2022, by = "snp", all = TRUE)
-
-#keep only the ones which are present in all samples
-
-# Check the number of rows
-nrow(startaf)
-
-startaf$all_present <- rowSums(!is.na(startaf[, grepl("^af", names(startaf))])) == length(grep("^af", names(startaf)))
-
-
-sum(!startaf$all_present)
-startaf_filtered <- startaf[startaf$all_present, ]
-
-colnames(startaf_filtered) <- c("snp", "af.x", "af.y", "af.z", "af.w", "all_present")
-summary(lm(af.x ~ af.y + af.z + af.w, data = startaf_filtered))
-
-#check if this model actually makes sense
-Call:
-lm(formula = af.x ~ af.y + af.z + af.w, data = startaf_filtered)
-
-Residuals:
-     Min       1Q   Median       3Q      Max
--0.68018 -0.00968  0.00085  0.01053  0.66982
-
-Coefficients:
-             Estimate Std. Error t value Pr(>|t|)
-(Intercept) 0.0011137  0.0001198   9.297   <2e-16 ***
-af.y        0.2817861  0.0009984 282.247   <2e-16 ***
-af.z        0.4177283  0.0010782 387.438   <2e-16 ***
-af.w        0.2990450  0.0010806 276.741   <2e-16 ***
----
-Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-Residual standard error: 0.02313 on 1190474 degrees of freedom
-Multiple R-squared:  0.9804,    Adjusted R-squared:  0.9804
-F-statistic: 1.986e+07 on 3 and 1190474 DF,  p-value: < 2.2e-16
-
-#now simulate the data
-
-#so I will simulate with t0 of each year being the starting point
+af_2009 <- af(subSync,,, 1, c(2,4))
+af_2011 <- af(subSync,,, 2, c(1,2))
+af_2015 <- af(subSync,,, 3, c(1,4))
+af_2022 <- af(subSync,,, 4, c(1,3))
 
 ##
 
@@ -5798,6 +5781,425 @@ F-statistic: 1.986e+07 on 3 and 1190474 DF,  p-value: < 2.2e-16
 
 
 ```
+# join single year simulations into one file
+## 15-02-2024
+```bash
+for i in {1..500}
+
+do {
+    cut -f 4 simulated.2009.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2009.1
+    cut -f 5 simulated.2009.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2009.2
+    cut -f 4 simulated.2011.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2011.1
+    cut -f 5 simulated.2011.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2011.2
+    cut -f 4 simulated.2015.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2015.1
+    cut -f 5 simulated.2015.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2015.2
+    cut -f 4 simulated.2022.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2022.1
+    cut -f 5 simulated.2022.${i}.sync | cut -f 1,3 -d ":" | sed 's/:/\t/'> ./temp/tmp.2022.2
+
+paste ./temp/tmp.2009.1 ./temp/tmp.2009.2 ./temp/tmp.2011.1 ./temp/tmp.2011.2 ./temp/tmp.2015.1 ./temp/tmp.2015.2 ./temp/tmp.2022.1 ./temp/tmp.2022.2 > ./final_files/rep${i}.counts
+
+}
+
+done
+```
+# 16.02.2024
+## Now I will run the baypass c2 model for all 500 simulations to get a p value
+## this will be done with an array script
+
+# baypass-simulations.sh
+
+```bash 
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=5
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=50G
+#SBATCH --time=22:00:00
+#SBATCH --array=1-500
+#SBATCH --job-name=bpsim-c2
+#SBATCH --output=baysim-c2-%a.out
+#SBATCH --error=baysim-c2-%a.err
+
+
+inputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants
+files=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/drift_simulation/final_files
+omega=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass
+outputdir=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations
+baypassdir=/gxfs_home/geomar/smomw573/software/baypass_public-master/sources
+
+$baypassdir/g_baypass \
+-gfile $files/rep${SLURM_ARRAY_TASK_ID}.counts \
+-efile $inputdir/cov-baypass.txt \
+-omegafile $omega/core-model_mat_omega.out \
+-poolsizefile $inputdir/haploid-size-baypass-txt \
+-d0yij 20 \
+-outprefix $outputdir/c2-model.${SLURM_ARRAY_TASK_ID} -nthreads 10 -contrastfile $inputdir/cov-baypass.txt
+
+```
+
+# 21.02.2024
+# rerun simulations cause 10 snps were missing
+
+## now all have all the simulations, so I need to create a new file which has all the p values for all snps in all 500 runs 
+file ending with summary_pi_xtx.out are the ones we need
+```bash 
+#dir baypass-simulations
+for i in {1..500}; do
+    awk '{print $6}' c2-model.${i}_summary_contrast.out > ./temp/column_${i}.txt
+done
+
+#create combined file
+cd temp
+paste *.txt > trial.txt
+#check if number of lines are 500
+head -1 trial.txt | tr '\t' '\n' | wc -l
+#if I need to know the order of the files
+head *txt | grep "^==" > order_pvalues_combinedfile
+#500 all good! 
+
+#calculate percentils in R
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=32000 --time=06:00:00 /bin/bash
+conda activate r_env
+R
+```
+
+```R
+df <- read.table("trial.txt", header = TRUE)
+#calculate percentil 2.5 and 97.5 for each row (dont really need this)
+# Calculate the percentile 2.5 for each row across the 500 columns
+# Calculate the percentiles for each row across the 500 columns
+#lower_percentile <- apply(df, 1, function(row) quantile(row, 0.025))
+#upper_percentile <- apply(df, 1, function(row) quantile(row, 0.975))
+
+# Add the calculated percentiles as new columns to your data frame
+#data$lower_2.5 <- lower_percentile
+#data$upper_97.5 <- upper_percentile
+
+# Write the updated data frame back to a file (if needed)
+write.table(data, "u.txt", sep="\t", row.names=FALSE)
+
+#now calculate the median for all original 5 runs of the c2 model
+
+setwd("~/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/baypass/C2-model")
+
+df1 <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/c2-model_summary_contrast.out", header= TRUE)
+df2 <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/c2-model2_summary_contrast.out", header= TRUE)
+df3 <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/c2.3-model_summary_contrast.out", header= TRUE)
+df4 <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/c2.4-model_summary_contrast.out", header= TRUE)
+df5 <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass/c2.5-model_summary_contrast.out", header= TRUE)
+head(df1)
+
+#fetch p values
+pval1 <- df1$log10.1.pval
+pval2 <- df2$log10.1.pval
+pval3 <- df3$log10.1.pval
+pval4 <- df4$log10.1.pval
+pval5 <- df5$log10.1.pval
+
+
+combinedp <- data.frame(p1=pval1, p2=pval2, p3=pval3, p4=pval4, p5=pval5)
+combinedp$medianp <- apply(combinedp,1,median)
+write.table(combinedp, "medianc2model-uncorrected-pvalues.txt", sep="\t", row.names=FALSE)
+write.table(combinedp, "pvalues-with-simcounts.txt", sep="\t", row.names=FALSE, col.names=TRUE, quote=FALSE)
+write.table(result, "final-list-sig-snps.txt", sep="\t", row.names=FALSE, col.names=TRUE, quote=FALSE)
+
+#import data with 500 simluations per SNP
+# Read the data from the file
+dfsim <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/trial.txt", header = TRUE)
+combinedp <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/medianc2model-uncorrected-pvalues.txt", sep="\t", header=TRUE)
+
+#okay no just quickly try empVal function
+library(devtools)
+library(qvalue)
+
+#create my list
+# Create a list with dfsim as stat0 and combinedp$medianp as stat
+
+# Use my_data in the empPvals function
+
+dfsim <- as.matrix(dfsim)
+
+pvalues <- empPvals(stat = combinedp$medianp, stat0 = dfsim, pool=TRUE)
+qobj <- qvalue(p = pvalues)
+qvalues <- qobj$qvalues
+#1678
+pi0 <- qobj$pi0
+lfdr <- qobj$lfdr
+summary(qobj)
+#48705
+hist(qobj)
+plot(qobj)
+write.table(qobj$pvalues,"sig-snps-empval.txt", row.names=FALSE, quote=FALSE)
+
+pvalues2 <- empPvals(stat = combinedp$medianp, stat0 = dfsim, pool=FALSE)
+qobj2 <- qvalue(p = pvalues2)
+qvalues2 <- qobj2$qvalues2
+#1678
+pi02 <- qobj2$pi02
+lfdr2 <- qobj2$lfdr2
+summary(qobj2)
+#50582
+write.table(qobj2$pvalues,"sig-snps-empval-falsepool.txt", row.names=FALSE, quote=FALSE)
+
+finalpvals <- data.frame(combinedp$medianp, qobj2$pvalues, qobj$pvalues)
+
+write.table(finalpvals$pool, "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/pval_pool.txt", row.names=FALSE, quote=FALSE)
+write.table(finalpvals$falsepool, "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/pval_falsepool.txt", row.names=FALSE, quote=FALSE)
+write.table(finalpvals$qvaluesfalse, "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/qvalue_false.txt", row.names=FALSE, quote=FALSE)
+
+
+#okay now I need to pull out the snps - restart
+#we want table false pool
+chrom <- read.table(file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chroms.txt", header= T)
+pvaluesfalsepool <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/pval_falsepool.txt", header=TRUE)
+qvaluesfalsepool <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/qvalue_false.txt", header=TRUE)
+pvaluespool <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/pval_pool.txt", header=TRUE)
+freq <- read.table(file="\\\\helmholtz.geomar.de/Users$/jnascimento/Daten/Jenny-Eurytemora_affinis/AF-GLM/freq_new_vcf.txt", header= T)
+
+combined <- cbind(chrom, pvaluesfalsepool, qvaluesfalsepool, pvaluespool)
+names(combined) <- c("chrom", "pvalues_false", "qvalues_false", "pvalues_pool")
+write.table(combined, "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-simulations/temp/final-significance-simulations.txt", row.names=FALSE, quote=FALSE)
+#significant snps
+#sigp false
+sigpfalse <- combined[combined$pvalues_false < 0.05, ]
+
+#sigq false
+sigqfalse <- combined[combined$qvalues_false < 0.05, ]
+
+```
+# for the section above I used figures-snps-baypass-simulations.R in my personal computer
+# 06.03.2024
+# compare p values from 5 models to the one generated by simulations
+# personal computer again
+# also ran script ploting-SNP-density.R
+
+
+# cheking out what AF of snps that are significant in one set (simulations) and not in baypass runs, to try to figure out why
+
+srun --pty --x11 --nodes=1 --cpus-per-task=4 --mem=32000 --time=06:00:00 /bin/bash
+conda activate r_env
+
+```R
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+df <- read.table("blabla.txt", header=TRUE)
+dfsig <- df %>% filter(df$pvalues_false < 0.05)
+nrow(dfsig)
+dfsig$logsimp <- -log10(dfsig$pvalues_false)
+plot(dfsig$logsimp, dfsig$combinedp)
+colors <- ifelse(dfsig$combinedp > 1.30103, "red", "black")
+sum(dfsig$combinedp > 1.30103)
+plot(dfsig$combinedp, dfsig$logsimp, col=colors)
+
+colors <- ifelse(dfsig$combinedp > 1.30103, "red", "black")
+sum(dfsig$combinedp > 1.30103)
+plot(dfsig$logsimp, dfsig$combinedp, col=colors)
+dfsig$pvalbaypass <- 10^(-dfsig$combinedp)
+sum(dfsig$pvalbaypass < 0.05)
+wonkysnps <- dfsig %>% filter(pvalbaypass > 0.05)
+nrow(wonkysnps)
+str(wonkysnps)
+
+write.table(wonkysnps, file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/incoherent-snp-list.txt", col.names=TRUE, quote=FALSE)
+
+#now check the AF and coverage of these snps
+
+cov <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/cov_new_vcf.txt", header = TRUE, sep = "\t")
+freq <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/freq_new_vcf.txt", header = TRUE, sep = "\t")
+pos <- read.table("/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/GLM/chrom-poly-position-seasonal-data.txt", header = FALSE, sep = "\t")
+
+covfinal <- cov[, c("EA_2009_T2", "EA_2009_T4", "EA_2011_T1", "EA_2011_T2", "EA_2015_T1", "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+freqfinal <- freq[, c("EA_2009_T2", "EA_2009_T4", "EA_2011_T1", "EA_2011_T2", "EA_2015_T1", "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+str(freqfinal)
+freqfinal$chrom <- pos$V1
+freqfinal$pos <- pos$V2
+covfinal$chrom <- pos$V1
+covfinal$pos <- pos$V2
+str(freqfinal)
+str(dfsig)
+
+covfinal$chrompos <- paste(covfinal$chrom, covfinal$pos, sep = "_")
+freqfinal$chrompos <- paste(freqfinal$chrom, freqfinal$pos, sep = "_")
+
+str(covfinal)
+
+dfsig$chrompos <- dfsig$chrom
+str(wonkysnps)
+wonkysnps$chrompos <- wonkysnps$chrom
+wonkyfreq <- merge(freqfinal, wonkysnps, by = "chrompos", all.x = FALSE)
+
+common_cols <- intersect(colnames(wonkyfreq), colnames(freqfinal))
+
+# Subset wankyfreq using common columns
+wonkyfreq <- wonkyfreq[, common_cols]
+str(wonkyfreq)
+write.table(wonkyfreq, file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/incoherent-snp-freq.txt", col.names=TRUE, quote=FALSE)
+
+#plot what was going on with the snps
+changes <- wonkyfreq %>%
+  mutate(
+    '2009.af' = `EA_2009_T4` - `EA_2009_T2`,
+    '2011.af' = `EA_2011_T2` - `EA_2011_T1`,
+    '2015.af' = `EA_2015_T4` - `EA_2015_T1`,
+    '2022.af' = `EA_2022_T1` - `EA_2022_T1`
+  )
+changes <- select(changes, chrompos, '2009.af', '2011.af', '2015.af', '2022.af')
+long_changes <- changes %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "AF")
+plot(long_changes$AF)
+par(mfcol = c(1, 2))
+hist(long_changes$AF)
+mean(long_changes$AF)
+#-0.0008932972
+sd(long_changes$AF)
+#0.0338069
+
+#check initial frequency
+start_values <- select(wonkyfreq, chrompos, 'EA_2009_T2', 'EA_2011_T1', 'EA_2015_T1', 'EA_2022_T1')
+long_start_values <- start_values %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Yearhist", 
+               values_to = "AF")
+
+history()
+long_wonkyfreq <- wonkyfreq %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "AF")
+
+#now I will check the variation in AF of the significant ones
+nonwonkysnps <- dfsig %>% filter(pvalbaypass < 0.05)
+nonwonkysnps$chrompos <- nonwankysnps$chrom
+nonwonkyfreq <- merge(freqfinal, nonwonkysnps, by = "chrompos", all.x = FALSE)
+
+common_cols <- intersect(colnames(nonwonkyfreq), colnames(freqfinal))
+
+# Subset wankyfreq using common columns
+nonwonkyfreq <- nonwonkyfreq[, common_cols]
+str(wonkyfreq)
+write.table(wonkyfreq, file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/incoherent-snp-freq.txt", col.names=TRUE, quote=FALSE)
+
+#plot what was going on with the snps
+changes2 <- nonwonkyfreq %>%
+  mutate(
+    '2009.af' = `EA_2009_T4` - `EA_2009_T2`,
+    '2011.af' = `EA_2011_T2` - `EA_2011_T1`,
+    '2015.af' = `EA_2015_T4` - `EA_2015_T1`,
+    '2022.af' = `EA_2022_T1` - `EA_2022_T1`
+  )
+changes2 <- select(changes2, chrompos, '2009.af', '2011.af', '2015.af', '2022.af')
+long_changes2 <- changes2 %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "AF")
+hist(long_changes2$AF)
+plot(long_changes2$AF)
+mean(long_changes2$AF)
+#-0.001005056
+sd(long_changes2$AF)
+#0.03758289
+
+#check initial frequency
+start_values2 <- select(nonwonkyfreq, chrompos, 'EA_2009_T2', 'EA_2011_T1', 'EA_2015_T1', 'EA_2022_T1')
+long_start_values2 <- start_values2 %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "AF")
+
+history()
+long_wonkyfreq <- wonkyfreq %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "AF")
+
+ hist(long_start_values$AF)
+ hist(long_start_values2$AF)
+
+
+##############now same for coverage
+
+wonkycov<- merge(covfinal, wonkysnps, by = "chrompos", all.x = FALSE)
+
+common_cols <- intersect(colnames(wankycov), colnames(covfinal))
+
+# Subset wankyfreq using common columns
+wonkycov <- wonkycov[, common_cols]
+str(wonkycov)
+write.table(wonkycov, file="/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/incoherent-snp-cov.txt", col.names=TRUE, quote=FALSE)
+
+#plot what was going on with the snps
+
+long_cov <- wonkycov %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "COV")
+
+hist(long_cov$COV)
+  mean(long_cov$COV)
+#254.3453
+sd(long_cov$COV)
+#163.7068
+
+#now I will check the variation in cov of the significant ones
+nonwonkysnps <- dfsig %>% filter(pvalbaypass < 0.05)
+nonwonkysnps$chrompos <- nonwonkysnps$chrom
+nonwonkycov <- merge(covfinal, nonwonkysnps, by = "chrompos", all.x = FALSE)
+
+common_cols <- intersect(colnames(nonwonkyfreq), colnames(covfinal))
+
+# Subset wankyfreq using common columns
+nonwonkycov <- nonwonkycov[, common_cols]
+long_cov2 <- nonwonkycov %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "COV")
+
+hist(long_cov2$COV)
+
+#check initial cov
+start_values <- select(wonkycov, chrompos, 'EA_2009_T2', 'EA_2011_T1', 'EA_2015_T1', 'EA_2022_T1')
+long_start_values <- start_values %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "COV")
+hist(long_start_values$COV)
+
+
+#plot what was going on with the snps
+start_values2  <- select(nonwonkycov, chrompos, 'EA_2009_T2', 'EA_2011_T1', 'EA_2015_T1', 'EA_2022_T1')
+long_start_values2 <- start_values2 %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "COV")
+hist(long_start_values2$COV)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5833,6 +6235,10 @@ OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/
 
 
 $GRENEDALF diversity --pileup-path $MPILEUP --filter-sample-min-count 1 --reference-genome-fasta-file $GENOME --allow-file-overwriting --window-type genome --pool-sizes 50 --measure theta-pi --file-prefix diversity- --out-dir $OUTPUT
+
+
+
+
 
 
 
