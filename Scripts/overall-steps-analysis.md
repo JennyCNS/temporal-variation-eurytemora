@@ -6181,6 +6181,335 @@ long_start_values2 <- start_values2 %>%
                values_to = "COV")
 hist(long_start_values2$COV)
 
+#okay so now I will select the 1K fluctuating snps, and check which ones have high p values in the fluctuating plot
+
+
+fluctsnps <- read.table("chrompos_fluctuatingsnps.txt", header=TRUE)
+colnames(fluctsnps) <- c("chrompos")
+#set of highly significant in baypass
+dfsigsim <- df %>% filter(df$pvalues_false < 0.05)
+df$logsimp <- -log10(df$pvalues_false)
+
+plot(df$logsimp, df$combinedp)
+plot(dfsig$logsimp, dfsig$combinedp)
+colors <- ifelse(dfsig$combinedp > 2, "red", "black")
+sum(dfsig$combinedp > 2.5)
+plot(dfsig$combinedp, dfsig$logsimp, col=colors)
+plot(df$logsimp, df$combinedp, col=colors)
+abline(h = 2, col = "red", lty = 2)
+abline(v = 1.30103, col = "red", lty = 2)
+#now filter for the ones that are highly significant in one but not in other
+
+filtered_df <- subset(df, combinedp > 2 & logsimp < 1.30103)
+#lets see what these snps are doing!
+#merge with AF data
+merged <- merge(filtered_df, freqfinal, by.x = "chrom", by.y = "chrompos")
+common_cols <- intersect(colnames(merged), colnames(freqfinal))
+
+# Subset wankyfreq using common columns
+merged <- merged[, common_cols]
+
+colnames(merged) <- c("chrompos","2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+
+trial <- gather(merged, key = "year", value = "af", -chrompos)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+trial$year <- factor(trial$year, levels = levels)
+factorsnames <- c("2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+d <- ggplot(data = trial, aes(x = year, y = af, color = chrompos)) +
+  geom_line(aes(group = chrompos), size = 1.5, alpha = 0.5) + # Increased line size
+  labs(x = "Time", y = "AF") +  # Removed color label
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    plot.title = element_text(size = 16)
+  ) +
+  scale_x_discrete(labels = factorsnames) +
+  guides(color = "none")  # Remove legend
+d
+
+
+start_columns <- merged[, c("chrompos", grep("\\.start", names(merged), value = TRUE))]
+long_start_values3 <- start_columns %>%
+  pivot_longer(cols = -chrompos, 
+               names_to = "Year", 
+               values_to = "AF")
+hist(long_start_values3$AF)
+
+#ok so now I will merge the highly significant ones in baypass 
+
+colors <- ifelse(df$combinedp > 2 & df$logsimp < 1.30103, "red", "black")
+plot(df$logsimp, df$combinedp, col=colors)
+
+#those are the ones I'll be looking at
+merged <- merge(filtered_df,freqfinal, by="chrompos")
+
+#okay, now the ones which are highly significant in baypass and slightly significant in simulations
+
+filtered_df2 <- subset(df, combinedp > 2 & logsimp > 1.30103)
+colors <- ifelse(df$combinedp > 3 & df$logsimp > 1.30103 & df$logsimp < 2.5, "red", "black")
+sum(dfsig$combinedp > 2.5)
+plot(df$logsimp,df$combinedp,  col=colors)
+
+
+
+
+#ok from those I want to color them in nroAF 1K plot! 
+filtered_df2 <- subset(df, combinedp > 3 & logsimp > 1.30103 & logsimp < 2.5)
+#lets see what these snps are doing!
+#merge with AF data
+merged2 <- merge(filtered_df2, freqfinal, by.x = "chrom", by.y = "chrompos")
+common_cols <- intersect(colnames(merged2), colnames(freqfinal))
+
+
+merged2 <- merged2[, common_cols]
+
+colnames(merged2) <- c("chrompos","2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+
+
+#ok now merge with the 1K snps to see how many are significant 
+merged3 <- merge(merged2, fluctsnps, by="chrompos")
+#ok, only 793 of these are in the 1K dataset
+#those are the ones which did not merge! 
+non_merged_snps <- anti_join(fluctsnps, merged3, by = "chrompos")
+sum(df, combinedp > 3 & logsimp > 1.30103)
+dfsig$pvalbaypass <- 10^(-dfsig$combinedp)
+sum(dfsig$pvalbaypass < 0.05)
+
+
+
+#forget all what ive tried so far. lets start fresh
+
+
+
+#ok, now I am just looking at the ones which are highly significant
+filtered_df2 <- subset(df, combinedp > 3)
+#lets see what these snps are doing!
+#merge with AF data
+merged2 <- merge(filtered_df2, freqfinal, by.x = "chrom", by.y = "chrompos")
+common_cols <- intersect(colnames(merged2), colnames(freqfinal))
+
+
+merged2 <- merged2[, common_cols]
+
+colnames(merged2) <- c("chrompos","2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+
+#901 snps with pvalues <0.001
+
+
+#ok now merge with the 1K snps to see how many are significant 
+merged3 <- merge(merged2, fluctsnps, by="chrompos")
+#ok, only 254 something of these are in the 1K dataset
+#those are the ones which did not merge! 
+#meaning they are highly significant in baypass, but are not part of the 1K fluctuating snps!) 
+non_merged_snps <- anti_join(merged2, fluctsnps, by = "chrompos")
+#600something snps
+
+#now I can plot the 1K snps, and colour these funky ones! 
+#first I will plot the ones that did not merge
+trial2 <- gather(non_merged_snps, key = "year", value = "af", -chrompos)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+trial2$year <- factor(trial2$year, levels = levels)
+factorsnames <- c("2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+d <- ggplot(data = trial2, aes(x = year, y = af, color = chrompos)) +
+  geom_line(aes(group = chrompos), size = 1.5, alpha = 0.5) + # Increased line size
+  labs(x = "Time", y = "AF") +  # Removed color label
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    plot.title = element_text(size = 16)
+  ) +
+  scale_x_discrete(labels = factorsnames) +
+  guides(color = "none")  # Remove legend
+d
+
+trial3 <- gather(merged3, key = "year", value = "af", -chrompos)
+levels <- c("2009.start", "2009.end", "2011.start", "2011.end", "2015.start", "2015.end", "2022.start", "2022.end")
+trial3$year <- factor(trial3$year, levels = levels)
+d <- ggplot(data = trial3, aes(x = year, y = af, color = chrompos)) +
+  geom_line(aes(group = chrompos), size = 1.5, alpha = 0.5) + # Increased line size
+  labs(x = "Time", y = "AF") +  # Removed color label
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    plot.title = element_text(size = 16)
+  ) +
+  scale_x_discrete(labels = factorsnames) +
+  guides(color = "none")  # Remove legend
+d
+
+#proper plot
+merged3_new <- merged3
+
+# Exclude the "chrompos" column and apply the transformation
+merged3_new[, -1] <- 1 - merged3_new[, -1]
+norm <- merged3 %>%
+  mutate(
+    '2009.end' = `2009.end` - `2009.start`,
+    '2011.end' = `2011.end` - `2011.start`,
+    '2015.end' = `2015.end` - `2015.start`,
+    '2022.end' = `2022.end` - `2022.start`
+  )
+
+#set start of the year to zero
+norm <- norm %>%
+  mutate(
+    '2009.start' = 0,
+    '2011.start' = 0,
+    '2015.start' = 0,
+    '2022.start' = 0
+  )
+
+#for neg snps
+normdec <- merged3_new %>%
+  mutate(
+    '2009.end' = `2009.end` - `2009.start`,
+    '2011.end' = `2011.end` - `2011.start`,
+    '2015.end' = `2015.end` - `2015.start`,
+    '2022.end' = `2022.end` - `2022.start`
+  )
+
+#set start of the year to zero
+normdec <- normdec %>%
+  mutate(
+    '2009.start' = 0,
+    '2011.start' = 0,
+    '2015.start' = 0,
+    '2022.start' = 0
+  )
+  #positive
+result <- norm %>%
+  mutate(across(starts_with("2009.") | starts_with("2011.") | starts_with("2015.") | starts_with("2022."), ~ . > 0))
+head(result)
+
+result2 <- result %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == TRUE))
+nrow(result2)
+#40 SNPs
+noclue <- merge(result2, merged3, by = "chrompos", suffixes = c(".result", ".af"))
+nrow(merged)
+head(merged)
+positivesnps <- noclue %>%
+  select(chrompos, ends_with(".af"))
+head(positivesnps)
+
+#now I will correct them all to 2009
+list <- c("2009.start.af", "2009.end.af", "2011.start.af", "2011.end.af", "2015.start.af", "2015.end.af", "2022.start.af", "2022.end.af")
+
+#positive <- positivesnps %>%
+#  mutate(across(all_of(list), ~ . - `2009.start.af`))
+#head(positive)
+#head(final)
+positive <- positivesnps
+finalpost <- gather(positive, key = "year", value = "af", -chrompos)
+levels <- c("2009.start.af", "2009.end.af", "2011.start.af", "2011.end.af", "2015.start.af", "2015.end.af", "2022.start.af", "2022.end.af")
+finalpost$year <- factor(finalpost$year, levels = levels)
+
+factorsnames <- c("2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+
+d <- ggplot(data = finalpost, aes(x = year, y = af)) +
+  geom_line(aes(group = chrompos), color = "black", size = 0.8, alpha = 0.1) +
+  labs(x = "Time", y = "AF", color = "Year") +
+  theme_classic()+
+  theme(
+    axis.title.x = element_text(size = 14),   # Adjust x-axis label size
+    axis.title.y = element_text(size = 14),   # Adjust y-axis label size
+    plot.title = element_text(size = 16)     # Adjust plot title size
+  ) +
+  scale_x_discrete(labels = factorsnames)
+#stat_summary(fun=median, color="dodgerblue3", geom = "line", group=1, size=1.5)
+d
+
+
+
+#now negative ones
+
+#select positive snps
+#inverse AF with af3
+resultdec <- normdec %>%
+  mutate(across(starts_with("2009.") | starts_with("2011.") | starts_with("2015.") | starts_with("2022."), ~ . > 0))
+head(resultdec)
+result2dec <- resultdec %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == TRUE))
+nrow(result2dec)
+#3207 SNPs
+#flip to positive
+
+mergeddec <- merge(result2dec, merged2_new, by = "chrompos", suffixes = c(".result", ".af"))
+nrow(mergeddec)
+head(mergeddec)
+positivesnpsdec <- mergeddec %>%
+  select(chrompos, ends_with(".af"))
+head(positivesnpsdec)
+
+#now I will correct them all to 2009
+list <- c("2009.start.af", "2009.end.af", "2011.start.af", "2011.end.af", "2015.start.af", "2015.end.af", "2022.start.af", "2022.end.af")
+
+positivedec <- positivesnpsdec %>%
+  mutate(across(all_of(list), ~ . - `2009.start.af`))
+head(positivedec)
+
+
+finalpostdec <- gather(positivedec, key = "year", value = "af", -chrompos)
+levels <- c("2009.start.af", "2009.end.af", "2011.start.af", "2011.end.af", "2015.start.af", "2015.end.af", "2022.start.af", "2022.end.af")
+finalpostdec$year <- factor(finalpostdec$year, levels = levels)
+
+factorsnames <- c("2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+
+df_combined <- rbind(finalpostdec, finalpost)
+
+d <- ggplot(data = df_combined, aes(x = year, y = af)) +
+  geom_line(aes(group = chrompos), color = "black", size = 0.8, alpha = 0.1) +
+  labs(x = "Time", y = "AF", color = "Year") +
+  theme_classic()+
+  theme(
+    axis.title.x = element_text(size = 14),   # Adjust x-axis label size
+    axis.title.y = element_text(size = 14),   # Adjust y-axis label size
+    plot.title = element_text(size = 16)     # Adjust plot title size
+  ) +
+  scale_x_discrete(labels = factorsnames) +
+  stat_summary(fun="mean", color="dodgerblue3", geom = "line", group=1, size=1.5)
+d
+ggsave("af-normalizedperyear-all-pvalues.pdf",d, w=7, h=5)
+sum(df, combinedp > 3 & logsimp > 1.30103)
+dfsig$pvalbaypass <- 10^(-dfsig$combinedp)
+sum(dfsig$pvalbaypass < 0.05)
+#ok now look at the behaviour of these snps! 
+
+
+#create COV and AF datasets for those snps
+covfluct <- merge(fluctsnps, sigpvals, by = "chrompos", suffixes = c(".result", ".af"))
+affluct
 
 
 
@@ -6189,15 +6518,173 @@ hist(long_start_values2$COV)
 
 
 
+df<- read.table("final-significance-simulations.txt", header=TRUE)
+freq <- read.table(file="\\\\helmholtz.geomar.de/Users$/jnascimento/Daten/Jenny-Eurytemora_affinis/AF-GLM/freq_new_vcf.txt", header= T)
+str(df)
+str(freq)
+head(df)
+sum(df$pvalues_false <= 0.004)
+#
+af <- freq[, c("EA_2009_T2","EA_2009_T4" ,"EA_2011_T1", "EA_2011_T2","EA_2015_T1", "EA_2015_T4", "EA_2022_T1", "EA_2022_T4")]
+af2 <- cbind(df$chrom, af)
+af3 <- 1-af
+afdec <- cbind(df$chrom, af3)
+
+names(af2)[1] <- c("chrom")
+names(afdec)[1] <- c("chrom")
+str(af2)
+#sigp false
+sigpfalse <- df[df$pvalues_false < 0.05, ]
+
+#sigq false
+sigqfalse <- df[df$qvalues_false < 0.05, ]
+
+#AF of pvalue significant snps
+str(af2)
+sigpvals <- merge(sigpfalse, af2, by = "chrom")
+sigqvals <- merge(sigqfalse, af2, by = "chrom")
+
+#for decreasing snps
+sigpvalsdec <- merge(sigpfalse, afdec, by = "chrom")
+sigqvalsdec <- merge(sigqfalse, afdec, by = "chrom")
+write.table(sigpvals,"significant_pvalues_simulations.txt", sep="\t", quote=FALSE)
+write.table(sigqvals,"significant_qvalues_simulations.txt", sep="\t", quote=FALSE)
+
+#start with pvalues
+sigpvals <- sigpvals[, names(af2)]
+sigqvals <- sigqvals[, names(af2)]
+sigpvalsdec <- sigpvalsdec[, names(afdec)]
+sigqvalsdec <- sigqvalsdec[, names(afdec)]
+
+colnames(sigpvals) <- c("chrompos", "2009.start", "2011.start",
+                        "2015.start", "2022.start",
+                        "2009.end", "2011.end",
+                        "2015.end", "2022.end")
+colnames(sigqvals) <- c("chrompos", "2009.start", "2011.start",
+                        "2015.start", "2022.start",
+                        "2009.end", "2011.end",
+                        "2015.end", "2022.end")
+colnames(sigpvalsdec) <- c("chrompos", "2009.start", "2011.start",
+                           "2015.start", "2022.start",
+                           "2009.end", "2011.end",
+                           "2015.end", "2022.end")
+colnames(sigqvalsdec) <- c("chrompos", "2009.start", "2011.start",
+                           "2015.start", "2022.start",
+                           "2009.end", "2011.end",
+                           "2015.end", "2022.end")
+
+#okay, fisrt visualise what each snp is doing normally
+#say 2009.start is zero
+
+#add row with numbers so I can ID SNPs
 
 
+#first check how much they changed
+norm <- sigqvals %>%
+  mutate(
+    '2009.end' = `2009.end` - `2009.start`,
+    '2011.end' = `2011.end` - `2011.start`,
+    '2015.end' = `2015.end` - `2015.start`,
+    '2022.end' = `2022.end` - `2022.start`
+  )
+
+#set start of the year to zero
+norm <- norm %>%
+  mutate(
+    '2009.start' = 0,
+    '2011.start' = 0,
+    '2015.start' = 0,
+    '2022.start' = 0
+  )
+
+#first check how much they changed
+normdec <- sigqvalsdec %>%
+  mutate(
+    '2009.end' = `2009.end` - `2009.start`,
+    '2011.end' = `2011.end` - `2011.start`,
+    '2015.end' = `2015.end` - `2015.start`,
+    '2022.end' = `2022.end` - `2022.start`
+  )
+
+#set start of the year to zero
+normdec <- normdec %>%
+  mutate(
+    '2009.start' = 0,
+    '2011.start' = 0,
+    '2015.start' = 0,
+    '2022.start' = 0
+  )
+#select positive snps
+
+result <- norm %>%
+  mutate(across(starts_with("2009.") | starts_with("2011.") | starts_with("2015.") | starts_with("2022."), ~ . > 0))
+head(result)
+
+result2 <- result %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == TRUE))
+nrow(result2)
+#3278 SNPs
+merged <- merge(result2, sigpvals, by = "chrompos", suffixes = c(".result", ".af"))
+nrow(merged)
+head(merged)
+positivesnps <- merged %>%
+  select(chrompos, ends_with(".af"))
+head(positivesnps)
+
+#now I will correct them all to 2009
+list <- c("2009.start.af", "2009.end.af", "2011.start.af", "2011.end.af", "2015.start.af", "2015.end.af", "2022.start.af", "2022.end.af")
+
+#positive <- positivesnps %>%
+#  mutate(across(all_of(list), ~ . - `2009.start.af`))
+#head(positive)
+#head(final)
+positive <- positivesnps
+finalpost <- gather(positive, key = "year", value = "af", -chrompos)
+levels <- c("2009.start.af", "2009.end.af", "2011.start.af", "2011.end.af", "2015.start.af", "2015.end.af", "2022.start.af", "2022.end.af")
+finalpost$year <- factor(finalpost$year, levels = levels)
+
+factorsnames <- c("2009.start", "2009.end",
+                  "2011.start", "2011.end",
+                  "2015.start", "2015.end",
+                  "2022.start", "2022.end"
+)
+
+d <- ggplot(data = finalpost, aes(x = year, y = af)) +
+  geom_line(aes(group = chrompos), color = "black", size = 0.8, alpha = 0.1) +
+  labs(x = "Time", y = "AF", color = "Year") +
+  theme_classic()+
+  theme(
+    axis.title.x = element_text(size = 14),   # Adjust x-axis label size
+    axis.title.y = element_text(size = 14),   # Adjust y-axis label size
+    plot.title = element_text(size = 16)     # Adjust plot title size
+  ) +
+  scale_x_discrete(labels = factorsnames)
+#stat_summary(fun=median, color="dodgerblue3", geom = "line", group=1, size=1.5)
+d
+ggsave("af-normalizedperyear-pos.pdf",d, w=7, h=5)
 
 
+#now negative ones
 
+#select positive snps
+#inverse AF with af3
+resultdec <- normdec %>%
+  mutate(across(starts_with("2009.") | starts_with("2011.") | starts_with("2015.") | starts_with("2022."), ~ . > 0))
+head(resultdec)
+result2dec <- resultdec %>%
+  filter_at(vars(ends_with(".end")), all_vars(. == TRUE))
+nrow(result2dec)
 
+```
 
+# 23.03.2024
+# filtering vcf for MAF 0.05 to see how the SNPs look like!
 
+```bash
+conda create -n vcf
 
+vcftools --gzvcf /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810.vcf.gz  --maf 0.05 --recode --out /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/final_20230810_maf05.vcf.gz
+```
 
 
 
@@ -6235,6 +6722,76 @@ OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/
 
 
 $GRENEDALF diversity --pileup-path $MPILEUP --filter-sample-min-count 1 --reference-genome-fasta-file $GENOME --allow-file-overwriting --window-type genome --pool-sizes 50 --measure theta-pi --file-prefix diversity- --out-dir $OUTPUT
+
+
+
+# run job 05.04.2024
+# calculate pi with windows (10k)
+
+#!/bin/bash
+#SBATCH -D /gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/
+#SBATCH --mail-type=END
+#SBATCH --mail-user=jnascimento@geomar.de
+#SBATCH --partition=base
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=2
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=50G
+#SBATCH --time=48:00:00
+#SBATCH --job-name=bp-c2
+#SBATCH --output=genome-diversity.out
+#SBATCH --error=genome-diversity.err
+
+module load gcc12-env/12.3.0
+module load gcc/12.3.0
+module load bzip2/1.0.8
+module load xz/5.4.1
+module load cmake/3.27.4
+
+GRENEDALF=/gxfs_home/geomar/smomw573/software/grenedalf/bin/grenedalf
+MPILEUP=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/all.mpileup-excluding20072011
+GENOME=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/genome/Eaffinis.Baltic.PseudoRef.Mar22.fasta.gz 
+OUTPUT=/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/variants/
+
+
+$GRENEDALF diversity --pileup-path $MPILEUP --filter-sample-min-count 1 --reference-genome-fasta-file $GENOME --allow-file-overwriting --window-type sliding  --window-sliding-width 10000 --pool-sizes 50 --measure theta-pi --file-prefix diversity-10kwindow- --out-dir $OUTPUT
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
