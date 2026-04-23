@@ -46,12 +46,10 @@ write.csv(
 
 # Check the results
 print(table(final_output$model_run))
-```
 #5528241 lines
 
-Now, I am getting the AF info from all simulations
+##################Now, I am getting the AF info from all simulations
 
-```r
 library(dplyr)
 
 # Define paths
@@ -59,16 +57,13 @@ baypass_dir <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/sli
 output_dir  <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-new-genome/output-c2-slim"
 
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
-
 baypass_files <- list.files(baypass_dir, pattern = "^neutral_.*\\.baypass$", full.names = TRUE)
-
 message(paste("Found", length(baypass_files), "files to process..."))
 
 # --- 3. Loop through files ---
 for (gfile_path in baypass_files) {
   
   fname <- basename(gfile_path)
-  
   # Sharp Regex: Extract only the number between 'neutral_' and the next '_'
   model_num_chr <- gsub("^neutral_([0-9]+)_.*", "\\1", fname)
   model_num <- as.numeric(model_num_chr)
@@ -115,13 +110,8 @@ for (gfile_path in baypass_files) {
 
 message("Processing complete.")
 
-```
 
-Here, I join the info on AF and qvalues
-
-```R
-library(dplyr)
-
+###################Here, I join the info on AF and qvalues
 # Paths
 output_dir <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-new-genome/output-c2-slim"
 
@@ -152,8 +142,6 @@ all_af_data <- all_af_data %>%
 # Load the q-value dataset from your output directory
 qval_path <- "/gxfs_home/geomar/smomw573/work/seasonal_adaptation/analysis/baypass-new-genome/output-c2-slim/combined_all_markers_qvalues.csv"
 all_qvals <- read.csv(qval_path)
-
-
 all_qvals$model_run <- as.character(all_qvals$model_run)
 
 # Now the merge will work
